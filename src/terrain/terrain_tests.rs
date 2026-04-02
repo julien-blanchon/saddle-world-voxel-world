@@ -14,7 +14,10 @@ fn generation_is_deterministic_for_same_seed() {
 #[test]
 fn generation_changes_with_seed() {
     let config_a = VoxelWorldConfig::default();
-    let config_b = VoxelWorldConfig { seed: 999, ..Default::default() };
+    let config_b = VoxelWorldConfig {
+        seed: 999,
+        ..Default::default()
+    };
     let a = generate_chunk(IVec3::new(0, 0, 0), &config_a);
     let b = generate_chunk(IVec3::new(0, 0, 0), &config_b);
     assert_ne!(a.blocks(), b.blocks());
