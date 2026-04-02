@@ -31,7 +31,9 @@ pub use stats::{VoxelDebugColorMode, VoxelDebugConfig, VoxelWorldStats};
 pub use terrain::{generate_chunk, sample_generated_block};
 pub use viewer::{ChunkViewer, ChunkViewerSettings};
 
-use std::{cmp::Reverse, collections::HashMap, time::Instant};
+use std::{cmp::Reverse, collections::HashMap};
+
+use bevy::platform::time::Instant;
 
 use bevy::{
     app::PostStartup,
