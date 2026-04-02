@@ -1,0 +1,22 @@
+[package]
+name = "saddle-world-voxel-world"
+version = "0.1.0"
+edition = "2024"
+publish = false
+repository = "https://github.com/julien-blanchon/saddle-world-voxel-world"
+license = "MIT-0"
+description = "Chunk-based voxel world streaming, meshing, editing, and persistence for Bevy"
+
+[features]
+default = []
+dev = []
+
+[dependencies]
+bevy = { version = "0.18", features = ["bevy_asset", "bevy_render", "bevy_pbr", "serialize"] }
+
+[workspace]
+
+[lints.clippy]
+too_many_arguments = "allow"
+type_complexity = "allow"
+nonstandard_macro_braces = "warn"

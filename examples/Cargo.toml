@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    "support",
+    "basic",
+    "block_editing",
+    "multi_viewer",
+    "persistence",
+    "debug_gizmos",
+    "lab",
+]
+resolver = "3"
+
+[workspace.dependencies]
+bevy = { version = "0.18", features = ["bevy_asset", "bevy_render", "bevy_pbr", "serialize"] }
+saddle-world-voxel-world = { path = ".." }
+saddle-camera-orbit-camera = { git = "https://github.com/julien-blanchon/saddle-camera-orbit-camera" }
+
+[workspace.lints.clippy]
+too_many_arguments = "allow"
+type_complexity = "allow"
+nonstandard_macro_braces = "warn"
