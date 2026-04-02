@@ -5,7 +5,7 @@ fn default_registry_contains_expected_blocks() {
     let registry = BlockRegistry::default();
     assert!(registry.contains(BlockId::GRASS));
     assert_eq!(registry.get(BlockId::TALL_GRASS).mesh_kind, MeshKind::Cross);
-    assert_eq!(registry.get(BlockId::AIR).solid, false);
+    assert!(!registry.get(BlockId::AIR).solid);
 }
 
 #[test]

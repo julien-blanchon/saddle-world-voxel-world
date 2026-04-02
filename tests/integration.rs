@@ -186,12 +186,14 @@ fn block_edit_triggers_dirty_chunk_and_emitted_message() {
 
 #[test]
 fn neighbor_generation_triggers_boundary_remesh() {
-    let mut config = VoxelWorldConfig::default();
-    config.request_radius = 0;
-    config.keep_radius = 1;
-    config.max_chunk_requests_per_frame = 1;
-    config.max_generation_jobs_in_flight = 1;
-    config.max_mesh_jobs_in_flight = 1;
+    let config = VoxelWorldConfig {
+        request_radius: 0,
+        keep_radius: 1,
+        max_chunk_requests_per_frame: 1,
+        max_generation_jobs_in_flight: 1,
+        max_mesh_jobs_in_flight: 1,
+        ..Default::default()
+    };
     let mut app = make_app_with_config(config);
 
     spawn_viewer(&mut app, Vec3::new(8.0, 8.0, 8.0), PrimaryViewer);
