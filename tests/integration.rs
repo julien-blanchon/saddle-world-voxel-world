@@ -1,5 +1,5 @@
 use bevy::{asset::Assets, ecs::system::SystemState, prelude::*};
-use saddle_world_saddle_world_voxel_world::{
+use saddle_world_voxel_world::{
     BlockEdit, BlockId, BlockModified, ChunkLifecycle, ChunkPos, ChunkStatus, ChunkViewer,
     VoxelCommand, VoxelDebugConfig, VoxelWorldConfig, VoxelWorldPlugin, VoxelWorldRoot,
     VoxelWorldSystems, VoxelWorldView, sample_generated_block, world_to_chunk,
@@ -171,7 +171,9 @@ fn block_edit_triggers_dirty_chunk_and_emitted_message() {
         .world_mut()
         .query::<(&ChunkPos, &ChunkStatus)>()
         .iter(app.world())
-        .find_map(|(pos, status)| (pos.0 == target_chunk).then_some(status.clone()))
+        .find_map(|(pos, status): (&ChunkPos, &ChunkStatus)| {
+            (pos.0 == target_chunk).then_some(status.clone())
+        })
         .expect("edited chunk should exist");
     assert!(chunk_status.dirty);
     assert!(

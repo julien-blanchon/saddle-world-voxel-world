@@ -149,9 +149,14 @@ fn disabling_greedy_emits_face_by_face_quads() {
         &mut greedy_counts,
     );
 
-    let mut config = VoxelWorldConfig::default();
-    config.chunk_dims = dims;
-    config.meshing.enable_greedy = false;
+    let config = VoxelWorldConfig {
+        chunk_dims: dims,
+        meshing: crate::config::MeshingConfig {
+            enable_greedy: false,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
     let mut face_buffers = MeshBuffers::default();
     let mut face_counts = MeshCounts::default();
     emit_greedy_quads(
@@ -205,8 +210,7 @@ fn ao_mismatch_breaks_greedy_merge() {
     let flat_padded = padded_from_center(&chunk);
     let mut flat_buffers = MeshBuffers::default();
     let mut flat_counts = MeshCounts::default();
-    let mut config = VoxelWorldConfig::default();
-    config.chunk_dims = dims;
+    let config = VoxelWorldConfig { chunk_dims: dims, ..Default::default() };
     emit_greedy_quads(
         IVec3::ZERO,
         &chunk,
@@ -253,8 +257,7 @@ fn disabling_ao_ignores_ao_based_merge_splits() {
         },
     );
 
-    let mut ao_config = VoxelWorldConfig::default();
-    ao_config.chunk_dims = dims;
+    let ao_config = VoxelWorldConfig { chunk_dims: dims, ..Default::default() };
     let mut ao_buffers = MeshBuffers::default();
     let mut ao_counts = MeshCounts::default();
     emit_greedy_quads(

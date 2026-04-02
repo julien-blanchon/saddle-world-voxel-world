@@ -40,6 +40,6 @@ fn uniform_chunk_compresses_better_than_raw_payload() {
     let dims = UVec3::splat(16);
     let chunk = ChunkData::new_filled(dims, BlockId::STONE);
     let encoded = encode_rle_blocks(&chunk);
-    let raw_bytes = chunk.blocks().len() * std::mem::size_of::<BlockId>();
+    let raw_bytes = std::mem::size_of_val(chunk.blocks());
     assert!(encoded.len() < raw_bytes);
 }
