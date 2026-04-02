@@ -1,7 +1,9 @@
 use saddle_world_voxel_world_example_support as support;
 
 use bevy::prelude::*;
-use saddle_world_voxel_world::{BlockEdit, BlockId, SaveMode, SavePolicy, VoxelCommand, VoxelWorldPlugin};
+use saddle_world_voxel_world::{
+    BlockEdit, BlockId, SaveMode, SavePolicy, VoxelCommand, VoxelWorldPlugin,
+};
 
 #[derive(Resource)]
 struct SavePulse(Timer);
@@ -42,7 +44,11 @@ fn stamp_edits(
         let index = (time.elapsed_secs() as i32) % 6;
         writer.write(VoxelCommand::SetBlock(BlockEdit {
             world_pos: IVec3::new(index - 3, 15, 0),
-            block: if index % 2 == 0 { BlockId::LAMP } else { BlockId::STONE },
+            block: if index % 2 == 0 {
+                BlockId::LAMP
+            } else {
+                BlockId::STONE
+            },
         }));
     }
 }

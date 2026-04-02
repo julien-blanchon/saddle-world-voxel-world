@@ -1,5 +1,7 @@
 use bevy::prelude::*;
-use saddle_world_voxel_world::{ChunkViewer, ChunkViewerSettings, SaveMode, SavePolicy, VoxelDebugConfig, VoxelWorldConfig};
+use saddle_world_voxel_world::{
+    ChunkViewer, ChunkViewerSettings, SaveMode, SavePolicy, VoxelDebugConfig, VoxelWorldConfig,
+};
 
 #[derive(Component)]
 pub struct ExampleViewer;

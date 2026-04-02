@@ -208,7 +208,9 @@ fn neighbor_generation_triggers_boundary_remesh() {
             >= 3
     });
 
-    let stats = app.world().resource::<saddle_world_voxel_world::VoxelWorldStats>();
+    let stats = app
+        .world()
+        .resource::<saddle_world_voxel_world::VoxelWorldStats>();
     assert!(stats.remeshed_chunks >= 3);
 }
 

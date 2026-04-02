@@ -33,16 +33,17 @@ fn voxel_smoke_launch() -> Scenario {
             "Launch the voxel-world lab, wait for chunk streaming, and capture the baseline view.",
         )
         .then(Action::WaitFrames(80))
-        .then(assertions::resource_exists::<saddle_world_voxel_world::VoxelWorldStats>(
-            "stats resource present",
-        ))
-        .then(assertions::entity_count_range::<saddle_world_voxel_world::ChunkPos>(
-            "reasonable startup chunk count",
-            1,
-            900,
-        ))
+        .then(assertions::resource_exists::<
+            saddle_world_voxel_world::VoxelWorldStats,
+        >("stats resource present"))
+        .then(assertions::entity_count_range::<
+            saddle_world_voxel_world::ChunkPos,
+        >("reasonable startup chunk count", 1, 900))
         .then(Action::Custom(Box::new(|world| {
-            let chunk_count = world.query::<&saddle_world_voxel_world::ChunkPos>().iter(world).count();
+            let chunk_count = world
+                .query::<&saddle_world_voxel_world::ChunkPos>()
+                .iter(world)
+                .count();
             let stats = world.resource::<saddle_world_voxel_world::VoxelWorldStats>();
             assert!(chunk_count > 0);
             assert!(stats.loaded_chunks > 0 || stats.generated_chunks > 0);
