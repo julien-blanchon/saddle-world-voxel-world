@@ -60,8 +60,10 @@ fn emissive_blocks_seed_neighboring_air_cells() {
         },
     );
 
-    let mut config = LightingConfig::default();
-    config.sky_light_level = 0;
+    let config = LightingConfig {
+        sky_light_level: 0,
+        ..Default::default()
+    };
     let field = build_light_field(&padded, &registry, &config);
     assert_eq!(field.get(IVec3::new(2, 1, 1)), 11);
     assert_eq!(field.get(IVec3::new(2, 2, 1)), 10);
@@ -69,8 +71,10 @@ fn emissive_blocks_seed_neighboring_air_cells() {
 
 #[test]
 fn brightness_respects_minimum_floor() {
-    let mut config = LightingConfig::default();
-    config.minimum_brightness = 0.25;
+    let config = LightingConfig {
+        minimum_brightness: 0.25,
+        ..Default::default()
+    };
 
     assert!((brightness_for_level(0, &config) - 0.25).abs() < 0.0001);
     assert!((brightness_for_level(15, &config) - 1.0).abs() < 0.0001);
