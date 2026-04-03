@@ -1,6 +1,7 @@
 mod ao;
 mod cross;
 mod greedy;
+mod lighting;
 
 use bevy::{
     asset::RenderAssetUsages, mesh::Indices, prelude::*, render::render_resource::PrimitiveTopology,
@@ -63,6 +64,11 @@ impl PaddedChunk {
         let index = padded.x + self.dims.x * (padded.y + self.dims.y * padded.z);
         self.blocks[index as usize] = sample;
     }
+
+    #[must_use]
+    pub fn dims(&self) -> UVec3 {
+        self.dims
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -87,16 +93,21 @@ impl MeshBuffers {
         normal: [f32; 3],
         uvs: [[f32; 2]; 4],
         ao: [u8; 4],
+        light: [u8; 4],
         ao_strength: f32,
+        lighting: &crate::config::LightingConfig,
     ) {
         let base = self.positions.len() as u32;
         self.positions.extend_from_slice(&positions);
         self.normals.extend_from_slice(&[normal; 4]);
         self.uvs.extend_from_slice(&uvs);
-        self.colors.extend(ao.into_iter().map(|value| {
-            let shade = 1.0 - (3_u8.saturating_sub(value)) as f32 * 0.22 * ao_strength;
-            [shade, shade, shade, 1.0]
-        }));
+        self.colors
+            .extend(ao.into_iter().zip(light).map(|(ao_value, light_value)| {
+                let ao_shade = 1.0 - (3_u8.saturating_sub(ao_value)) as f32 * 0.22 * ao_strength;
+                let light_shade = lighting::brightness_for_level(light_value, lighting);
+                let shade = ao_shade * light_shade;
+                [shade, shade, shade, 1.0]
+            }));
         self.indices
             .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
     }
@@ -137,11 +148,16 @@ pub fn build_chunk_meshes(
     let mut opaque = MeshBuffers::default();
     let mut cutout = MeshBuffers::default();
     let mut counts = MeshCounts::default();
+    let light_field = config
+        .lighting
+        .flood_fill
+        .then(|| lighting::build_light_field(padded, registry, &config.lighting));
 
     greedy::emit_greedy_quads(
         chunk_pos,
         center,
         padded,
+        light_field.as_ref(),
         registry,
         config,
         &mut opaque,
@@ -150,6 +166,7 @@ pub fn build_chunk_meshes(
     cross::emit_cross_quads(
         chunk_pos,
         center,
+        light_field.as_ref(),
         registry,
         config,
         &mut cutout,

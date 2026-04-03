@@ -43,14 +43,22 @@ impl Default for MeshingConfig {
 #[derive(Clone, Debug, Reflect)]
 pub struct LightingConfig {
     pub baked_ao: bool,
-    pub future_flood_fill_enabled: bool,
+    pub flood_fill: bool,
+    pub max_light_level: u8,
+    pub sky_light_level: u8,
+    pub light_falloff: u8,
+    pub minimum_brightness: f32,
 }
 
 impl Default for LightingConfig {
     fn default() -> Self {
         Self {
             baked_ao: true,
-            future_flood_fill_enabled: false,
+            flood_fill: true,
+            max_light_level: 15,
+            sky_light_level: 15,
+            light_falloff: 1,
+            minimum_brightness: 0.18,
         }
     }
 }
@@ -177,6 +185,18 @@ impl VoxelWorldConfig {
         }
         if self.atlas.columns == 0 || self.atlas.rows == 0 {
             return Err("atlas grid must have at least one column and row".into());
+        }
+        if self.lighting.max_light_level == 0 {
+            return Err("lighting.max_light_level must be greater than zero".into());
+        }
+        if self.lighting.sky_light_level > self.lighting.max_light_level {
+            return Err("lighting.sky_light_level cannot exceed lighting.max_light_level".into());
+        }
+        if self.lighting.light_falloff == 0 {
+            return Err("lighting.light_falloff must be greater than zero".into());
+        }
+        if !(0.0..=1.0).contains(&self.lighting.minimum_brightness) {
+            return Err("lighting.minimum_brightness must stay between 0.0 and 1.0".into());
         }
         Ok(())
     }

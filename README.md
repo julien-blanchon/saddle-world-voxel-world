@@ -90,7 +90,8 @@ Edits go through one message-based mutation path:
 
 - Opaque cube faces use greedy meshing.
 - Foliage-style blocks use a separate cross-mesh path with cutout material handling.
-- AO is baked into vertex colors during mesh build.
+- Monochrome skylight plus emissive flood-fill lighting are baked into vertex colors during mesh build.
+- AO is multiplied into that same vertex-color lighting stage during mesh build.
 - If `AtlasConfig::asset_path` is unset, the crate generates a small debug atlas at runtime so examples stay asset-free.
 - Empty chunks skip mesh asset allocation entirely.
 
@@ -167,7 +168,7 @@ The bench target covers meshing, terrain generation, RLE encode/decode, and voxe
 
 ## Known Limits And Non-Goals
 
-- Flood-fill skylight and emissive propagation are not implemented yet. `LightingConfig` currently controls baked AO and reserves the surface for a future lighting stage.
+- The shipped lighting model is scalar skylight plus emissive flood fill. There is no RGB light transport, sunlight directionality, or persistent light volumes yet.
 - Collision mesh extraction is intentionally deferred; the block registry exposes collision intent, but the crate does not bind any physics backend.
 - The current persistence format stores sparse edit deltas, not full chunk snapshots.
 - Atlas UVs on merged greedy quads use stretched face UVs instead of tiled repetition.

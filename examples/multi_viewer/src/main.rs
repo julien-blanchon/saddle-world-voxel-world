@@ -1,6 +1,7 @@
 use saddle_world_voxel_world_example_support as support;
 
 use bevy::prelude::*;
+use saddle_pane::prelude::*;
 use saddle_world_voxel_world::{ChunkViewer, ChunkViewerSettings, VoxelWorldPlugin};
 
 fn main() {
@@ -15,9 +16,18 @@ fn main() {
             }),
             ..default()
         }))
+        .add_plugins(support::pane_plugins())
         .add_plugins(VoxelWorldPlugin::default())
+        .register_pane::<support::VoxelExamplePane>()
         .add_systems(Startup, (support::spawn_scene, spawn_secondary_viewer))
-        .add_systems(Update, (support::spin_viewer, move_secondary_viewer))
+        .add_systems(
+            Update,
+            (
+                support::sync_example_pane,
+                support::spin_viewer,
+                move_secondary_viewer,
+            ),
+        )
         .run();
 }
 

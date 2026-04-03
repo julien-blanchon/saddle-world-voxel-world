@@ -3,12 +3,15 @@ mod e2e;
 #[cfg(feature = "e2e")]
 mod scenarios;
 
+use saddle_world_voxel_world_example_support as support;
+
 use bevy::{
     input::ButtonInput,
     prelude::*,
     remote::{RemotePlugin, http::RemoteHttpPlugin},
 };
 use saddle_camera_orbit_camera::{OrbitCamera, OrbitCameraInputTarget, OrbitCameraPlugin};
+use saddle_pane::prelude::*;
 use saddle_world_voxel_world::{
     ChunkViewer, ChunkViewerSettings, VoxelDebugConfig, VoxelWorldConfig, VoxelWorldPlugin,
 };
@@ -37,6 +40,11 @@ fn main() {
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb(0.60, 0.76, 0.92)));
     app.insert_resource(config);
+    app.insert_resource(support::VoxelExamplePane {
+        show_chunk_bounds: true,
+        show_viewer_radii: true,
+        ..default()
+    });
     app.insert_resource(SecondaryViewerEnabled::default());
     app.insert_resource(LabUiMode("idle".into()));
     app.insert_resource(VoxelDebugConfig {
@@ -52,11 +60,13 @@ fn main() {
         }),
         ..default()
     }));
+    app.add_plugins(support::pane_plugins());
     app.add_plugins((
         RemotePlugin::default(),
         OrbitCameraPlugin::default(),
         VoxelWorldPlugin::default(),
     ));
+    app.register_pane::<support::VoxelExamplePane>();
     #[cfg(all(feature = "dev", not(target_arch = "wasm32")))]
     app.add_plugins(bevy_brp_extras::BrpExtrasPlugin::with_http_plugin(
         RemoteHttpPlugin::default(),
@@ -66,7 +76,12 @@ fn main() {
     app.add_systems(Startup, setup);
     app.add_systems(
         Update,
-        (handle_debug_keys, animate_secondary_viewer, update_overlay),
+        (
+            support::sync_example_pane,
+            handle_debug_keys,
+            animate_secondary_viewer,
+            update_overlay,
+        ),
     );
     app.run();
 }
