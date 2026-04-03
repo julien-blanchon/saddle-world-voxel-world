@@ -13,7 +13,7 @@ This crate was designed from a small set of stable ideas rather than by mirrorin
 
 ### What was simplified
 
-- No flood-fill lighting yet. AO is baked during meshing so the first shipped runtime still has depth cues and stable tests.
+- Lighting is still intentionally simple: monochrome skylight plus emissive flood fill are baked during meshing instead of running as a persistent world-light simulation.
 - No collision mesh stage yet. The block registry exposes collision intent, but physics backend binding stays outside the crate.
 - No LOD or clipmap path yet. The runtime uses fixed-size chunks with hysteresis because that keeps persistence, edits, and diagnostics straightforward.
 - Persistence is sparse delta-based instead of storing full chunk snapshots or sector tables.
@@ -81,7 +81,7 @@ Current runtime mapping:
 
 Generation integration also invalidates already-loaded face neighbors. Chunks that previously rendered conservative boundary faces against unknown neighbors are marked for remesh once adjacent chunk truth exists.
 
-`Collision` and `Lighting` are currently reserved extension points. They are part of the public ordering surface so downstream crates can already order future systems against them without a breaking rename later.
+`Collision` remains a reserved extension point. `Lighting` is still part of the public ordering surface, but the shipped lighting work happens inside chunk meshing jobs rather than as a standalone ECS stage.
 
 ## Chunk Residency Model
 
@@ -127,8 +127,9 @@ Meshing is intentionally split into two render classes.
 ### Opaque cubes
 
 - padded chunk samples give each face access to neighbor truth
+- a chunk-local light field is built from skylight and emissive sources before face emission
 - greedy meshing runs per axis slice
-- merge keys include block ID, material class, tile, face normal, and AO pattern
+- merge keys include block ID, material class, tile, face normal, AO pattern, and light level
 - AO mismatch breaks a merge to avoid visible seams
 
 ### Cross meshes

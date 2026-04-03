@@ -6,7 +6,7 @@ use crate::{
     config::VoxelWorldConfig,
     meshing::{
         MeshBuffers, MeshCounts, PaddedChunk, SampledBlock, ambient_occlusion_for_face,
-        atlas_tile_for, atlas_uvs, culls_neighbor, should_emit_cube,
+        atlas_tile_for, atlas_uvs, culls_neighbor, lighting::LightField, should_emit_cube,
     },
 };
 
@@ -16,6 +16,7 @@ struct FaceKey {
     normal: IVec3,
     tile: u16,
     ao: [u8; 4],
+    light: u8,
     material_class: MaterialClass,
 }
 
@@ -23,6 +24,7 @@ pub fn emit_greedy_quads(
     chunk_pos: IVec3,
     center: &ChunkData,
     padded: &PaddedChunk,
+    light_field: Option<&LightField>,
     registry: &BlockRegistry,
     config: &VoxelWorldConfig,
     opaque: &mut MeshBuffers,
@@ -53,7 +55,17 @@ pub fn emit_greedy_quads(
                     let a_sample = padded.get(a + IVec3::ONE);
                     let b_sample = padded.get(b + IVec3::ONE);
                     let face =
-                        visible_face(axis, a, b, a_sample, b_sample, padded, registry, config);
+                        visible_face(
+                            axis,
+                            a,
+                            b,
+                            a_sample,
+                            b_sample,
+                            padded,
+                            light_field,
+                            registry,
+                            config,
+                        );
                     mask[i + j * du] = face;
                 }
             }
@@ -123,6 +135,7 @@ fn visible_face(
     a_sample: SampledBlock,
     b_sample: SampledBlock,
     padded: &PaddedChunk,
+    light_field: Option<&LightField>,
     registry: &BlockRegistry,
     config: &VoxelWorldConfig,
 ) -> Option<FaceKey> {
@@ -146,6 +159,17 @@ fn visible_face(
                 normal,
                 tile: atlas_tile_for(registry, block, normal),
                 ao,
+                light: light_field
+                    .map(|field| {
+                        super::lighting::face_light_level(
+                            field,
+                            a_local + IVec3::ONE,
+                            normal,
+                            definition.emissive_level,
+                            &config.lighting,
+                        )
+                    })
+                    .unwrap_or(config.lighting.max_light_level),
                 material_class: definition.material_class,
             });
         }
@@ -168,6 +192,17 @@ fn visible_face(
                 normal: negative_normal,
                 tile: atlas_tile_for(registry, block, negative_normal),
                 ao,
+                light: light_field
+                    .map(|field| {
+                        super::lighting::face_light_level(
+                            field,
+                            b_local + IVec3::ONE,
+                            negative_normal,
+                            definition.emissive_level,
+                            &config.lighting,
+                        )
+                    })
+                    .unwrap_or(config.lighting.max_light_level),
                 material_class: definition.material_class,
             });
         }
@@ -223,7 +258,9 @@ fn emit_quad(
         key.normal.as_vec3().to_array(),
         atlas_uvs(key.tile, &config.atlas),
         key.ao,
+        [key.light; 4],
         config.meshing.ao_strength,
+        &config.lighting,
     );
 }
 

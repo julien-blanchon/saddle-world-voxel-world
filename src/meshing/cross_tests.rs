@@ -12,6 +12,7 @@ fn cross_meshing_emits_two_quads_per_cross_block() {
     emit_cross_quads(
         IVec3::ZERO,
         &chunk,
+        None,
         &BlockRegistry::default(),
         &VoxelWorldConfig::default(),
         &mut buffers,
@@ -30,6 +31,7 @@ fn separate_cross_blocks_do_not_merge() {
     emit_cross_quads(
         IVec3::ZERO,
         &chunk,
+        None,
         &BlockRegistry::default(),
         &VoxelWorldConfig::default(),
         &mut buffers,

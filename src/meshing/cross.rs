@@ -4,12 +4,13 @@ use crate::{
     block::{BlockRegistry, MeshKind},
     chunk::ChunkData,
     config::VoxelWorldConfig,
-    meshing::{MeshBuffers, MeshCounts, atlas_uvs},
+    meshing::{MeshBuffers, MeshCounts, atlas_uvs, lighting::LightField},
 };
 
 pub fn emit_cross_quads(
     chunk_pos: IVec3,
     center: &ChunkData,
+    light_field: Option<&LightField>,
     registry: &BlockRegistry,
     config: &VoxelWorldConfig,
     cutout: &mut MeshBuffers,
@@ -32,6 +33,13 @@ pub fn emit_cross_quads(
                 let tile = definition.atlas.sides;
                 let uv = atlas_uvs(tile, &config.atlas);
                 let ao = [3_u8; 4];
+                let light = light_field
+                    .map(|field| {
+                        field
+                            .get(local.as_ivec3() + IVec3::ONE)
+                            .max(definition.emissive_level.min(config.lighting.max_light_level))
+                    })
+                    .unwrap_or(config.lighting.max_light_level);
 
                 cutout.push_quad(
                     [
@@ -43,7 +51,9 @@ pub fn emit_cross_quads(
                     [0.707, 0.0, -0.707],
                     uv,
                     ao,
+                    [light; 4],
                     0.0,
+                    &config.lighting,
                 );
                 cutout.push_quad(
                     [
@@ -55,7 +65,9 @@ pub fn emit_cross_quads(
                     [-0.707, 0.0, -0.707],
                     uv,
                     ao,
+                    [light; 4],
                     0.0,
+                    &config.lighting,
                 );
                 counts.cutout_quads += 2;
             }

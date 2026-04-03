@@ -60,7 +60,11 @@ This file documents the public tuning surface of the crate. Defaults target a sm
 | Field | Type | Default | Range / Guidance | Effect |
 | --- | --- | --- | --- | --- |
 | `baked_ao` | `bool` | `true` | Disable only when comparing AO-off geometry. | Public toggle for the current AO lighting stage. |
-| `future_flood_fill_enabled` | `bool` | `false` | Reserved for future evolution. | Placeholder public surface for a later flood-fill lighting pass. |
+| `flood_fill` | `bool` | `true` | Disable when you want flat, atlas-only debug shading. | Enables chunk-local skylight and emissive flood-fill lighting during mesh extraction. |
+| `max_light_level` | `u8` | `15` | Must stay `> 0`. Higher values preserve more steps before falloff reaches zero. | Maximum scalar light intensity used for normalization and propagation clamps. |
+| `sky_light_level` | `u8` | `15` | Must stay `<= max_light_level`. | Seed intensity used for open-to-sky cells at the top of the padded chunk. |
+| `light_falloff` | `u8` | `1` | Must stay `> 0`. Higher values make lighting decay more aggressively per step. | Per-neighbor attenuation for both skylight and emissive propagation. |
+| `minimum_brightness` | `f32` | `0.18` | Keep in `0.0..=1.0`. | Floor applied when converting propagated light into vertex-color brightness so enclosed spaces never become fully black unless you choose to. |
 
 ## `AtlasConfig`
 
@@ -95,5 +99,6 @@ Attach this component only when a viewer should override the global config.
 
 - Tight single-player flyover: `request_radius = 4`, `keep_radius = 6`, `max_generation_jobs_in_flight = 2..4`, `max_mesh_jobs_in_flight = 2..4`
 - Edit-heavy prototype: keep `request_radius` modest, raise mesh concurrency slightly, and leave `render_faces_against_unknown_neighbors = true`
+- Lighting showcase: leave `flood_fill = true`, keep `max_light_level` and `sky_light_level` aligned, and lower `minimum_brightness` if you want caves to read darker
 - Split-screen or editor camera: use per-viewer `ChunkViewerSettings.priority` to keep the primary view responsive without disabling secondary viewers
 - Persistence-heavy debug session: use smaller `region_dims` when you want saves localized around rapid edits, larger `region_dims` when you prefer fewer files

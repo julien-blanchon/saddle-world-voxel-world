@@ -7,6 +7,7 @@ publish = false
 [dependencies]
 bevy = { workspace = true }
 saddle-world-voxel-world = { workspace = true }
+saddle-pane = { workspace = true }
 saddle-world-voxel-world-example-support = { path = "../support" }
 
 [lints]
