@@ -24,7 +24,14 @@ fn main() {
         .add_plugins(VoxelWorldPlugin::default())
         .register_pane::<support::VoxelExamplePane>()
         .add_systems(Startup, support::spawn_scene)
-        .add_systems(Update, (support::sync_example_pane, support::spin_viewer, pulse_edits))
+        .add_systems(
+            Update,
+            (
+                support::sync_example_pane,
+                support::spin_viewer,
+                pulse_edits,
+            ),
+        )
         .run();
 }
 

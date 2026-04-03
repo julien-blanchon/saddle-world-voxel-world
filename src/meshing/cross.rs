@@ -35,9 +35,11 @@ pub fn emit_cross_quads(
                 let ao = [3_u8; 4];
                 let light = light_field
                     .map(|field| {
-                        field
-                            .get(local.as_ivec3() + IVec3::ONE)
-                            .max(definition.emissive_level.min(config.lighting.max_light_level))
+                        field.get(local.as_ivec3() + IVec3::ONE).max(
+                            definition
+                                .emissive_level
+                                .min(config.lighting.max_light_level),
+                        )
                     })
                     .unwrap_or(config.lighting.max_light_level);
 

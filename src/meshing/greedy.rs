@@ -54,18 +54,17 @@ pub fn emit_greedy_quads(
 
                     let a_sample = padded.get(a + IVec3::ONE);
                     let b_sample = padded.get(b + IVec3::ONE);
-                    let face =
-                        visible_face(
-                            axis,
-                            a,
-                            b,
-                            a_sample,
-                            b_sample,
-                            padded,
-                            light_field,
-                            registry,
-                            config,
-                        );
+                    let face = visible_face(
+                        axis,
+                        a,
+                        b,
+                        a_sample,
+                        b_sample,
+                        padded,
+                        light_field,
+                        registry,
+                        config,
+                    );
                     mask[i + j * du] = face;
                 }
             }

@@ -46,7 +46,9 @@ impl LightField {
         }
         let position = position.as_uvec3();
         (position.x < self.dims.x && position.y < self.dims.y && position.z < self.dims.z)
-            .then_some((position.x + self.dims.x * (position.y + self.dims.y * position.z)) as usize)
+            .then_some(
+                (position.x + self.dims.x * (position.y + self.dims.y * position.z)) as usize,
+            )
     }
 }
 

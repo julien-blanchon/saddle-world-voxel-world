@@ -101,17 +101,13 @@ impl MeshBuffers {
         self.positions.extend_from_slice(&positions);
         self.normals.extend_from_slice(&[normal; 4]);
         self.uvs.extend_from_slice(&uvs);
-        self.colors.extend(
-            ao.into_iter()
-                .zip(light)
-                .map(|(ao_value, light_value)| {
-                    let ao_shade =
-                        1.0 - (3_u8.saturating_sub(ao_value)) as f32 * 0.22 * ao_strength;
-                    let light_shade = lighting::brightness_for_level(light_value, lighting);
-                    let shade = ao_shade * light_shade;
-                    [shade, shade, shade, 1.0]
-                }),
-        );
+        self.colors
+            .extend(ao.into_iter().zip(light).map(|(ao_value, light_value)| {
+                let ao_shade = 1.0 - (3_u8.saturating_sub(ao_value)) as f32 * 0.22 * ao_strength;
+                let light_shade = lighting::brightness_for_level(light_value, lighting);
+                let shade = ao_shade * light_shade;
+                [shade, shade, shade, 1.0]
+            }));
         self.indices
             .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
     }
