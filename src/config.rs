@@ -13,7 +13,7 @@ impl Default for AtlasConfig {
     fn default() -> Self {
         Self {
             asset_path: None,
-            columns: 3,
+            columns: 4,
             rows: 3,
             tile_size: UVec2::splat(16),
             uv_inset: 0.02,

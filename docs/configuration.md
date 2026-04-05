@@ -19,7 +19,7 @@ This file documents the public tuning surface of the crate. Defaults target a sm
 | `terrain` | `TerrainConfig` | layered-noise defaults | See below. | Terrain generator selection and parameterization. |
 | `meshing` | `MeshingConfig` | greedy + AO defaults | See below. | Controls greedy meshing, AO, and unknown-neighbor face policy. |
 | `lighting` | `LightingConfig` | baked AO only | See below. | Current and future lighting-stage toggles. |
-| `atlas` | `AtlasConfig` | generated 3x3 atlas | See below. | Texture layout, UV inset, and optional asset-backed atlas. |
+| `atlas` | `AtlasConfig` | generated 4x3 atlas | See below. | Texture layout, UV inset, and optional asset-backed atlas. |
 
 ## `SavePolicy`
 
@@ -43,7 +43,7 @@ This file documents the public tuning surface of the crate. Defaults target a sm
 | `cave_frequency` | `f32` | `0.06` | Higher values make denser, smaller cave features. | XYZ frequency of the cave noise field. |
 | `cave_threshold` | `f32` | `0.68` | Higher values carve fewer caves. | Threshold above which underground voxels become air. |
 | `water_level` | `i32` | `10` | Keep coherent with `base_height`. | Y level used for water fill and shoreline sand selection. |
-| `foliage_chance` | `f32` | `0.08` | Usually `0.0..=0.3`. | Chance factor for the simple tall-grass decoration pass. |
+| `foliage_chance` | `f32` | `0.08` | Usually `0.0..=0.3`. | Chance factor for tall-grass decoration and tree placement (trees use `foliage_chance * 1.5`). |
 | `structure_version` | `u32` | `1` | Reserved for future structure passes. | Public version hook for future structure generation changes. |
 
 ## `MeshingConfig`
@@ -71,7 +71,7 @@ This file documents the public tuning surface of the crate. Defaults target a sm
 | Field | Type | Default | Range / Guidance | Effect |
 | --- | --- | --- | --- | --- |
 | `asset_path` | `Option<String>` | `None` | Provide a path when you want a real texture atlas. | If unset, the crate generates a small debug atlas image at runtime. |
-| `columns` | `u16` | `3` | Must cover the highest atlas tile used by the block registry. | Atlas grid width. |
+| `columns` | `u16` | `4` | Must cover the highest atlas tile used by the block registry. | Atlas grid width. |
 | `rows` | `u16` | `3` | Must cover the highest atlas tile used by the block registry. | Atlas grid height. |
 | `tile_size` | `UVec2` | `16, 16` | Keep square unless your atlas content requires otherwise. | Used for generated debug atlas dimensions and UV computation. |
 | `uv_inset` | `f32` | `0.02` | Small positive values reduce bleeding. | Shrinks UVs slightly inside the tile. |

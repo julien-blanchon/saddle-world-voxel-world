@@ -937,16 +937,19 @@ fn generate_debug_atlas(config: &VoxelWorldConfig) -> Image {
     let width = config.atlas.tile_size.x * config.atlas.columns as u32;
     let height = config.atlas.tile_size.y * config.atlas.rows as u32;
     let mut data = vec![0_u8; (width * height * 4) as usize];
-    let palette: [[u8; 4]; 9] = [
-        [34, 44, 56, 255],
-        [96, 172, 79, 255],
-        [94, 128, 71, 255],
-        [118, 87, 60, 255],
-        [126, 134, 145, 255],
-        [215, 201, 135, 255],
-        [74, 141, 205, 192],
-        [148, 184, 92, 170],
-        [247, 215, 106, 255],
+    let palette: [[u8; 4]; 12] = [
+        [34, 44, 56, 255],    // 0: air (unused)
+        [96, 172, 79, 255],   // 1: grass top
+        [94, 128, 71, 255],   // 2: grass side
+        [118, 87, 60, 255],   // 3: dirt
+        [126, 134, 145, 255], // 4: stone
+        [215, 201, 135, 255], // 5: sand
+        [74, 141, 205, 192],  // 6: water
+        [148, 184, 92, 170],  // 7: tall grass
+        [247, 215, 106, 255], // 8: lamp
+        [120, 84, 52, 255],   // 9: wood side (bark)
+        [160, 132, 80, 255],  // 10: wood top/bottom (rings)
+        [56, 142, 40, 200],   // 11: leaves
     ];
 
     for (tile, color) in palette.iter().copied().enumerate() {

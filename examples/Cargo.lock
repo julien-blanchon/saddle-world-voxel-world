@@ -5011,6 +5011,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "saddle-world-voxel-world-example-mini-minecraft"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "saddle-pane",
+ "saddle-world-voxel-world",
+ "saddle-world-voxel-world-example-support",
+]
+
+[[package]]
 name = "saddle-world-voxel-world-example-multi-viewer"
 version = "0.1.0"
 dependencies = [

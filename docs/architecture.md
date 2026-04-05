@@ -112,7 +112,9 @@ For every local voxel in a chunk:
 1. convert chunk-local coordinates to world-space integer coordinates
 2. sample a 2D fBm height field
 3. sample a 3D cave noise field
-4. choose a block ID based on terrain height, water level, cave threshold, and a small decorative foliage/lamp pass
+4. choose a block ID based on terrain height, water level, cave threshold, and decorative passes
+5. check for tree placement: deterministic hash-based tree roots on a sparse grid, each producing a wood trunk (4-6 blocks) and spherical leaf canopy (radius 2)
+6. apply foliage/lamp decorative pass for remaining above-surface positions
 
 The public architecture still leaves room for alternate generators:
 
@@ -131,6 +133,12 @@ Meshing is intentionally split into two render classes.
 - greedy meshing runs per axis slice
 - merge keys include block ID, material class, tile, face normal, AO pattern, and light level
 - AO mismatch breaks a merge to avoid visible seams
+
+### Cutout cubes
+
+- cube blocks with `MaterialClass::Cutout` (e.g. leaves) emit per-face quads into the cutout mesh
+- face culling only hides faces against fully opaque solid neighbors
+- AO and lighting are sampled per-face like opaque cubes
 
 ### Cross meshes
 

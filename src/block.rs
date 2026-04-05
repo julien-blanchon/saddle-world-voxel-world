@@ -13,6 +13,8 @@ impl BlockId {
     pub const WATER: Self = Self(5);
     pub const TALL_GRASS: Self = Self(6);
     pub const LAMP: Self = Self(7);
+    pub const WOOD: Self = Self(8);
+    pub const LEAVES: Self = Self(9);
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
@@ -180,6 +182,32 @@ impl Default for BlockRegistry {
                 collision: CollisionKind::Solid,
                 emissive_level: 12,
                 atlas: BlockFaceAtlas::uniform(8),
+            },
+            BlockDefinition {
+                id: BlockId::WOOD,
+                name: "Wood".into(),
+                mesh_kind: MeshKind::Cube,
+                material_class: MaterialClass::Opaque,
+                solid: true,
+                opaque: true,
+                collision: CollisionKind::Solid,
+                emissive_level: 0,
+                atlas: BlockFaceAtlas {
+                    top: 10,
+                    sides: 9,
+                    bottom: 10,
+                },
+            },
+            BlockDefinition {
+                id: BlockId::LEAVES,
+                name: "Leaves".into(),
+                mesh_kind: MeshKind::Cube,
+                material_class: MaterialClass::Cutout,
+                solid: true,
+                opaque: false,
+                collision: CollisionKind::Solid,
+                emissive_level: 0,
+                atlas: BlockFaceAtlas::uniform(11),
             },
         ];
 

@@ -6,6 +6,7 @@ members = [
     "multi_viewer",
     "persistence",
     "debug_gizmos",
+    "mini_minecraft",
     "lab",
 ]
 resolver = "3"

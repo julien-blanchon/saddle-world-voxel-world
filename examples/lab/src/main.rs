@@ -32,10 +32,12 @@ pub(crate) struct SecondaryViewerEnabled(pub bool);
 pub(crate) struct LabUiMode(pub String);
 
 fn main() {
-    let mut config = VoxelWorldConfig::default();
-    config.request_radius = 4;
-    config.keep_radius = 6;
-    config.max_chunk_requests_per_frame = 18;
+    let config = VoxelWorldConfig {
+        request_radius: 4,
+        keep_radius: 6,
+        max_chunk_requests_per_frame: 18,
+        ..VoxelWorldConfig::default()
+    };
 
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb(0.60, 0.76, 0.92)));

@@ -83,4 +83,14 @@ pub fn fbm2(seed: u64, point: Vec2, octaves: u8) -> f32 {
     }
 }
 
+/// Deterministic hash for tree placement — returns 0.0..1.0.
+pub fn tree_hash(seed: u64, x: i32, z: i32) -> f32 {
+    let h = hash(
+        seed.wrapping_add(0xdead_beef)
+            ^ (x as u64).wrapping_mul(0x9e37_79b9)
+            ^ (z as u64).wrapping_mul(0x94d0_49bb),
+    );
+    (h & 0xffff_ffff) as f32 / u32::MAX as f32
+}
+
 use bevy::prelude::*;

@@ -62,7 +62,7 @@ For examples, crate-local labs, and always-on tools, `VoxelWorldPlugin::default(
 - Read-only access: `VoxelWorldView`
 - Edit path: `VoxelCommand::{SetBlock, Batch}` plus `BlockEdit`
 - Messages: `ChunkLoaded`, `ChunkUnloaded`, `BlockModified`
-- Core data types: `BlockId`, `BlockDefinition`, `BlockFaceAtlas`, `ChunkData`, `ChunkLifecycle`
+- Core data types: `BlockId` (AIR, GRASS, DIRT, STONE, SAND, WATER, TALL_GRASS, LAMP, WOOD, LEAVES), `BlockDefinition`, `BlockFaceAtlas`, `ChunkData`, `ChunkLifecycle`
 - Helpers: coordinate conversions, `generate_chunk`, `sample_generated_block`, `raycast_blocks`, `save_chunk_delta`, `load_chunk_delta`, `encode_rle_blocks`, `decode_rle_blocks`
 
 ## Runtime Model
@@ -86,13 +86,27 @@ Edits go through one message-based mutation path:
 - meshing is re-queued only for the affected chunk set
 - `BlockModified` is emitted for downstream systems
 
+## Terrain Generation
+
+The default `LayeredNoise` generator creates procedural terrain with:
+
+- Noise-based height map with configurable octaves, amplitude, and frequency
+- 3D cave carving using value noise
+- Layered block placement (grass, dirt, stone, sand near water)
+- Deterministic tree generation (wood trunks with spherical leaf canopy)
+- Scattered foliage (tall grass)
+- Scattered light sources (lamps)
+
+All generation is deterministic: same seed produces the same world.
+
 ## Rendering Notes
 
-- Opaque cube faces use greedy meshing.
-- Foliage-style blocks use a separate cross-mesh path with cutout material handling.
+- Opaque cube faces use greedy meshing for efficient draw calls.
+- Cutout cube blocks (leaves) use per-face emission with alpha-mask rendering.
+- Foliage-style blocks (tall grass) use a separate cross-mesh path with cutout material handling.
 - Monochrome skylight plus emissive flood-fill lighting are baked into vertex colors during mesh build.
 - AO is multiplied into that same vertex-color lighting stage during mesh build.
-- If `AtlasConfig::asset_path` is unset, the crate generates a small debug atlas at runtime so examples stay asset-free.
+- If `AtlasConfig::asset_path` is unset, the crate generates a 4x3 debug atlas at runtime so examples stay asset-free.
 - Empty chunks skip mesh asset allocation entirely.
 
 ## Persistence
@@ -115,6 +129,7 @@ More detail lives in [docs/persistence.md](docs/persistence.md).
 | `multi_viewer` | Union streaming across two viewers with different priorities | `cargo run -p saddle-world-voxel-world-example-multi-viewer` |
 | `persistence` | Delta-region persistence and reload-friendly configuration | `cargo run -p saddle-world-voxel-world-example-persistence` |
 | `debug_gizmos` | Chunk bounds and viewer radii visualization | `cargo run -p saddle-world-voxel-world-example-debug-gizmos` |
+| `mini_minecraft` | Playable FPS voxel sandbox with block placement/breaking, trees, and HUD | `cargo run -p saddle-world-voxel-world-example-mini-minecraft` |
 
 The richer validation app lives in [`examples/lab`](examples/lab/README.md).
 

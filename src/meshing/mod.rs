@@ -172,6 +172,16 @@ pub fn build_chunk_meshes(
         &mut cutout,
         &mut counts,
     );
+    cross::emit_cutout_cube_faces(
+        chunk_pos,
+        center,
+        padded,
+        light_field.as_ref(),
+        registry,
+        config,
+        &mut cutout,
+        &mut counts,
+    );
 
     ChunkMeshArtifacts {
         opaque_mesh: opaque.build_mesh(),

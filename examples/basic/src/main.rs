@@ -18,8 +18,8 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.60, 0.76, 0.92)))
         // --------------- Voxel world configuration ---------------
         .insert_resource(VoxelWorldConfig {
-            request_radius: 4,              // request chunks within 4-chunk radius
-            keep_radius: 6,                 // keep loaded chunks within 6-chunk radius
+            request_radius: 4, // request chunks within 4-chunk radius
+            keep_radius: 6,    // keep loaded chunks within 6-chunk radius
             max_chunk_requests_per_frame: 16,
             save_policy: SavePolicy {
                 mode: SaveMode::Disabled,
