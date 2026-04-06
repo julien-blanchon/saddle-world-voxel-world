@@ -16,8 +16,7 @@ pub use block::{
 };
 pub use chunk::{ChunkData, ChunkLifecycle, ChunkPos, ChunkStatus};
 pub use config::{
-    AtlasConfig, GeneratorKind, LightingConfig, MeshingConfig, SaveMode, SavePolicy, TerrainConfig,
-    VoxelWorldConfig,
+    AtlasConfig, LightingConfig, MeshingConfig, SaveMode, SavePolicy, VoxelWorldConfig,
 };
 pub use coordinates::{
     chunk_origin, chunk_translation, is_on_chunk_boundary, local_to_world,
@@ -28,7 +27,10 @@ pub use raycast::{
     BlockSampler, RaycastHit, chunk_bounds_world, raycast_blocks, rebuild_world_pos,
 };
 pub use stats::{VoxelDebugColorMode, VoxelDebugConfig, VoxelWorldStats};
-pub use terrain::{generate_chunk, sample_generated_block};
+pub use terrain::{
+    FlatBlockSampler, VoxelBlockSampler, VoxelDecorationHook, VoxelWorldGenerator, generate_chunk,
+    sample_generated_block,
+};
 pub use viewer::{ChunkViewer, ChunkViewerSettings};
 
 use std::{cmp::Reverse, collections::HashMap};
@@ -210,6 +212,7 @@ impl Plugin for VoxelWorldPlugin {
         }
 
         app.init_resource::<BlockRegistry>()
+            .init_resource::<VoxelWorldGenerator>()
             .init_resource::<RuntimeState>()
             .init_resource::<VoxelDebugConfig>()
             .init_resource::<VoxelWorldConfig>()
@@ -227,14 +230,12 @@ impl Plugin for VoxelWorldPlugin {
             .register_type::<ChunkStatus>()
             .register_type::<ChunkViewer>()
             .register_type::<ChunkViewerSettings>()
-            .register_type::<GeneratorKind>()
             .register_type::<LightingConfig>()
             .register_type::<MaterialClass>()
             .register_type::<MeshKind>()
             .register_type::<MeshingConfig>()
             .register_type::<SaveMode>()
             .register_type::<SavePolicy>()
-            .register_type::<TerrainConfig>()
             .register_type::<VoxelDebugColorMode>()
             .register_type::<VoxelDebugConfig>()
             .register_type::<VoxelWorldConfig>()
@@ -529,7 +530,11 @@ fn stream_requested_chunks(
     }
 }
 
-fn queue_generation_jobs(config: Res<VoxelWorldConfig>, mut runtime: ResMut<RuntimeState>) {
+fn queue_generation_jobs(
+    config: Res<VoxelWorldConfig>,
+    generator: Res<VoxelWorldGenerator>,
+    mut runtime: ResMut<RuntimeState>,
+) {
     let in_flight = runtime
         .chunks
         .values()
@@ -558,9 +563,10 @@ fn queue_generation_jobs(config: Res<VoxelWorldConfig>, mut runtime: ResMut<Runt
     let pool = AsyncComputeTaskPool::get();
     for (chunk, _) in queued.into_iter().take(budget) {
         let config = config.clone();
+        let generator = generator.clone();
         let task = pool.spawn(async move {
             let start = Instant::now();
-            let data = generate_chunk(chunk, &config);
+            let data = generate_chunk(chunk, &config, &generator);
             GenerationJobResult {
                 data,
                 duration_ms: start.elapsed().as_secs_f32() * 1000.0,
@@ -619,6 +625,7 @@ fn poll_generation_jobs(
 
 fn process_voxel_commands(
     config: Res<VoxelWorldConfig>,
+    generator: Res<VoxelWorldGenerator>,
     mut commands: Commands,
     registry: Res<BlockRegistry>,
     mut runtime: ResMut<RuntimeState>,
@@ -654,7 +661,7 @@ fn process_voxel_commands(
                 chunk,
                 ChunkRecord {
                     entity,
-                    data: Some(generate_chunk(chunk, config)),
+                    data: Some(generate_chunk(chunk, config, &generator)),
                     overrides: Default::default(),
                     generation_task: None,
                     meshing_task: None,
@@ -844,6 +851,7 @@ fn poll_meshing_jobs(
     meshes: Option<ResMut<Assets<Mesh>>>,
     mut materials: Option<ResMut<Assets<StandardMaterial>>>,
     config: Res<VoxelWorldConfig>,
+    registry: Res<BlockRegistry>,
     mut runtime: ResMut<RuntimeState>,
     mut stats: ResMut<VoxelWorldStats>,
 ) {
@@ -851,8 +859,12 @@ fn poll_meshing_jobs(
         let Some(materials) = materials.as_mut() else {
             return;
         };
-        let atlas =
-            generated_or_loaded_atlas(&config, asset_server.as_deref(), images.as_deref_mut());
+        let atlas = generated_or_loaded_atlas(
+            &config,
+            &registry,
+            asset_server.as_deref(),
+            images.as_deref_mut(),
+        );
         runtime.material_state = Some(MaterialState {
             opaque_material: materials.add(StandardMaterial {
                 base_color_texture: Some(atlas.clone()),
@@ -918,6 +930,7 @@ fn poll_meshing_jobs(
 
 fn generated_or_loaded_atlas(
     config: &VoxelWorldConfig,
+    registry: &BlockRegistry,
     asset_server: Option<&AssetServer>,
     images: Option<&mut Assets<Image>>,
 ) -> Handle<Image> {
@@ -926,46 +939,43 @@ fn generated_or_loaded_atlas(
             .expect("AssetServer is required when atlas.asset_path is set")
             .load(asset_path.clone())
     } else {
-        let image = generate_debug_atlas(config);
+        let image = generate_debug_atlas(config, registry);
         images
             .expect("Assets<Image> is required for generated atlas images")
             .add(image)
     }
 }
 
-fn generate_debug_atlas(config: &VoxelWorldConfig) -> Image {
+fn generate_debug_atlas(config: &VoxelWorldConfig, registry: &BlockRegistry) -> Image {
     let width = config.atlas.tile_size.x * config.atlas.columns as u32;
     let height = config.atlas.tile_size.y * config.atlas.rows as u32;
     let mut data = vec![0_u8; (width * height * 4) as usize];
-    let palette: [[u8; 4]; 12] = [
-        [34, 44, 56, 255],    // 0: air (unused)
-        [96, 172, 79, 255],   // 1: grass top
-        [94, 128, 71, 255],   // 2: grass side
-        [118, 87, 60, 255],   // 3: dirt
-        [126, 134, 145, 255], // 4: stone
-        [215, 201, 135, 255], // 5: sand
-        [74, 141, 205, 192],  // 6: water
-        [148, 184, 92, 170],  // 7: tall grass
-        [247, 215, 106, 255], // 8: lamp
-        [120, 84, 52, 255],   // 9: wood side (bark)
-        [160, 132, 80, 255],  // 10: wood top/bottom (rings)
-        [56, 142, 40, 200],   // 11: leaves
-    ];
+    let tile_count = (config.atlas.columns as usize * config.atlas.rows as usize)
+        .max(registry.max_atlas_tile() as usize + 1);
 
-    for (tile, color) in palette.iter().copied().enumerate() {
+    for tile in 0..tile_count {
         let column = tile as u32 % config.atlas.columns as u32;
         let row = tile as u32 / config.atlas.columns as u32;
+        if row >= config.atlas.rows as u32 {
+            continue;
+        }
+        let color = debug_tile_color(tile as u16);
+        let alpha = debug_tile_alpha(tile as u16, registry);
         for y in 0..config.atlas.tile_size.y {
             for x in 0..config.atlas.tile_size.x {
                 let gx = column * config.atlas.tile_size.x + x;
                 let gy = row * config.atlas.tile_size.y + y;
                 let index = ((gy * width + gx) * 4) as usize;
-                let shade: u8 = if (x + y) % 5 == 0 { 18 } else { 0 };
+                let shade: u8 = if (x + y + tile as u32).is_multiple_of(5) {
+                    18
+                } else {
+                    0
+                };
                 data[index..index + 4].copy_from_slice(&[
                     color[0].saturating_add(shade),
                     color[1].saturating_add(shade),
                     color[2].saturating_add(shade),
-                    color[3],
+                    alpha,
                 ]);
             }
         }
@@ -982,6 +992,28 @@ fn generate_debug_atlas(config: &VoxelWorldConfig) -> Image {
         bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
         bevy::asset::RenderAssetUsages::default(),
     )
+}
+
+fn debug_tile_color(tile: u16) -> [u8; 3] {
+    let hash = tile.wrapping_mul(1_103).wrapping_add(0x4d).rotate_left(3);
+    [
+        48 + (hash & 0x3f) as u8,
+        72 + ((hash >> 3) & 0x7f) as u8,
+        96 + ((hash >> 6) & 0x7f) as u8,
+    ]
+}
+
+fn debug_tile_alpha(tile: u16, registry: &BlockRegistry) -> u8 {
+    let uses_cutout = registry.definitions().iter().any(|definition| {
+        definition.material_class == MaterialClass::Cutout
+            && [
+                definition.atlas.top,
+                definition.atlas.sides,
+                definition.atlas.bottom,
+            ]
+            .contains(&tile)
+    });
+    if uses_cutout { 210 } else { 255 }
 }
 
 fn apply_mesh_part(

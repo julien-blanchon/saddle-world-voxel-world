@@ -50,7 +50,7 @@ Publicly visible lifecycle state is exposed through `ChunkStatus.lifecycle`.
 Important behavior:
 
 - chunks are created from viewer demand, not from camera assumptions
-- generation is deterministic from `seed + chunk position + generator config`
+- generation is deterministic from `seed + chunk position + injected sampler/decorator resources`
 - boundary edits mark neighbor chunks dirty
 - unknown neighbor data keeps boundary faces visible until neighboring truth arrives
 - empty chunks keep chunk entities and data but skip mesh asset allocation
@@ -105,22 +105,23 @@ This gives the runtime:
 
 ## Generation Pipeline
 
-The current generation path is deterministic layered noise terrain.
+The runtime owns the scheduling for generation, but it does not own one specific biome or terrain recipe.
 
 For every local voxel in a chunk:
 
 1. convert chunk-local coordinates to world-space integer coordinates
-2. sample a 2D fBm height field
-3. sample a 3D cave noise field
-4. choose a block ID based on terrain height, water level, cave threshold, and decorative passes
-5. check for tree placement: deterministic hash-based tree roots on a sparse grid, each producing a wood trunk (4-6 blocks) and spherical leaf canopy (radius 2)
-6. apply foliage/lamp decorative pass for remaining above-surface positions
+2. call the injected `VoxelBlockSampler` for the base block ID
+3. run each injected `VoxelDecorationHook` in order so sparse features can override the base result
+4. write the final block ID into contiguous chunk storage
 
-The public architecture still leaves room for alternate generators:
+This lets the public API stay stable while games swap in very different generation stacks:
 
-- `GeneratorKind::Flat`
-- `GeneratorKind::LayeredNoise`
-- future strategy-based or biome-aware generation without changing chunk/entity APIs
+- flat debug planes
+- layered heightmap terrain
+- biome-aware block selection
+- structure passes, foliage passes, light placement, or authored imports
+
+The crate-local examples and lab now opt into a showcase preset in example support. That preset is intentionally outside the runtime crate surface.
 
 ## Meshing Pipeline
 
@@ -136,7 +137,7 @@ Meshing is intentionally split into two render classes.
 
 ### Cutout cubes
 
-- cube blocks with `MaterialClass::Cutout` (e.g. leaves) emit per-face quads into the cutout mesh
+- cube blocks with `MaterialClass::Cutout` emit per-face quads into the cutout mesh
 - face culling only hides faces against fully opaque solid neighbors
 - AO and lighting are sampled per-face like opaque cubes
 

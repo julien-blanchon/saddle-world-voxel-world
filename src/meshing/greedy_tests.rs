@@ -24,7 +24,7 @@ fn padded_from_center(center: &ChunkData) -> PaddedChunk {
 #[test]
 fn isolated_block_emits_six_quads() {
     let mut chunk = ChunkData::new_filled(UVec3::splat(2), BlockId::AIR);
-    chunk.set(UVec3::new(0, 0, 0), BlockId::STONE);
+    chunk.set(UVec3::new(0, 0, 0), BlockId::SOLID);
     let padded = padded_from_center(&chunk);
     let mut buffers = MeshBuffers::default();
     let mut counts = MeshCounts::default();
@@ -43,7 +43,7 @@ fn isolated_block_emits_six_quads() {
 
 #[test]
 fn full_solid_chunk_only_emits_exterior_faces() {
-    let chunk = ChunkData::new_filled(UVec3::splat(2), BlockId::STONE);
+    let chunk = ChunkData::new_filled(UVec3::splat(2), BlockId::SOLID);
     let padded = padded_from_center(&chunk);
     let mut buffers = MeshBuffers::default();
     let mut counts = MeshCounts::default();
@@ -62,7 +62,7 @@ fn full_solid_chunk_only_emits_exterior_faces() {
 
 #[test]
 fn unknown_neighbor_keeps_boundary_face_visible() {
-    let chunk = ChunkData::new_filled(UVec3::splat(1), BlockId::STONE);
+    let chunk = ChunkData::new_filled(UVec3::splat(1), BlockId::SOLID);
     let padded = padded_from_center(&chunk);
     let mut buffers = MeshBuffers::default();
     let mut counts = MeshCounts::default();
@@ -81,12 +81,12 @@ fn unknown_neighbor_keeps_boundary_face_visible() {
 
 #[test]
 fn solid_neighbor_culls_boundary_face_when_known() {
-    let chunk = ChunkData::new_filled(UVec3::splat(1), BlockId::STONE);
+    let chunk = ChunkData::new_filled(UVec3::splat(1), BlockId::SOLID);
     let mut padded = padded_from_center(&chunk);
     padded.set(
         IVec3::new(2, 1, 1),
         SampledBlock {
-            id: BlockId::STONE,
+            id: BlockId::SOLID,
             known: true,
         },
     );
@@ -107,8 +107,8 @@ fn solid_neighbor_culls_boundary_face_when_known() {
 
 #[test]
 fn transparent_or_cross_neighbor_does_not_cull_opaque_face() {
-    for neighbor in [BlockId::WATER, BlockId::TALL_GRASS] {
-        let chunk = ChunkData::new_filled(UVec3::splat(1), BlockId::STONE);
+    for neighbor in [BlockId::NON_SOLID, BlockId::CROSS] {
+        let chunk = ChunkData::new_filled(UVec3::splat(1), BlockId::SOLID);
         let mut padded = padded_from_center(&chunk);
         padded.set(
             IVec3::new(2, 1, 1),
@@ -139,7 +139,7 @@ fn transparent_or_cross_neighbor_does_not_cull_opaque_face() {
 #[test]
 fn disabling_greedy_emits_face_by_face_quads() {
     let dims = UVec3::new(4, 1, 4);
-    let chunk = ChunkData::new_filled(dims, BlockId::STONE);
+    let chunk = ChunkData::new_filled(dims, BlockId::SOLID);
     let padded = padded_from_center(&chunk);
 
     let mut greedy_buffers = MeshBuffers::default();
@@ -186,10 +186,10 @@ fn checkerboard_pattern_resists_large_merges() {
     let mut chunk = ChunkData::new_filled(dims, BlockId::AIR);
     for z in 0..dims.z {
         for x in 0..dims.x {
-            let block = if (x + z) % 2 == 0 {
-                BlockId::STONE
+            let block = if (x + z).is_multiple_of(2) {
+                BlockId::SOLID
             } else {
-                BlockId::DIRT
+                BlockId::SOLID_ALT
             };
             chunk.set(UVec3::new(x, 0, z), block);
         }
@@ -213,7 +213,7 @@ fn checkerboard_pattern_resists_large_merges() {
 #[test]
 fn ao_mismatch_breaks_greedy_merge() {
     let dims = UVec3::new(2, 1, 1);
-    let chunk = ChunkData::new_filled(dims, BlockId::STONE);
+    let chunk = ChunkData::new_filled(dims, BlockId::SOLID);
 
     let flat_padded = padded_from_center(&chunk);
     let mut flat_buffers = MeshBuffers::default();
@@ -237,7 +237,7 @@ fn ao_mismatch_breaks_greedy_merge() {
     ao_padded.set(
         IVec3::new(3, 2, 1),
         SampledBlock {
-            id: BlockId::STONE,
+            id: BlockId::SOLID,
             known: true,
         },
     );
@@ -260,12 +260,12 @@ fn ao_mismatch_breaks_greedy_merge() {
 #[test]
 fn disabling_ao_ignores_ao_based_merge_splits() {
     let dims = UVec3::new(2, 1, 1);
-    let chunk = ChunkData::new_filled(dims, BlockId::STONE);
+    let chunk = ChunkData::new_filled(dims, BlockId::SOLID);
     let mut padded = padded_from_center(&chunk);
     padded.set(
         IVec3::new(3, 2, 1),
         SampledBlock {
-            id: BlockId::STONE,
+            id: BlockId::SOLID,
             known: true,
         },
     );

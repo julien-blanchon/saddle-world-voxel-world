@@ -9,7 +9,7 @@ fn ao_is_bright_for_unoccluded_top_face() {
     padded.set(
         IVec3::new(1, 1, 1),
         SampledBlock {
-            id: BlockId::STONE,
+            id: BlockId::SOLID,
             known: true,
         },
     );
@@ -28,21 +28,21 @@ fn ao_darkens_when_corner_is_occluded() {
     padded.set(
         IVec3::new(1, 1, 1),
         SampledBlock {
-            id: BlockId::STONE,
+            id: BlockId::SOLID,
             known: true,
         },
     );
     padded.set(
         IVec3::new(0, 2, 1),
         SampledBlock {
-            id: BlockId::STONE,
+            id: BlockId::SOLID,
             known: true,
         },
     );
     padded.set(
         IVec3::new(1, 2, 0),
         SampledBlock {
-            id: BlockId::STONE,
+            id: BlockId::SOLID,
             known: true,
         },
     );

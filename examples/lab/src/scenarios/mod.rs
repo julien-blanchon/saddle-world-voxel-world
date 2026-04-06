@@ -1,10 +1,17 @@
 use std::collections::HashSet;
 
 use bevy::prelude::*;
+use bevy::{
+    render::view::screenshot::{Screenshot, save_to_disk},
+    window::PrimaryWindow,
+};
 use saddle_bevy_e2e::{action::Action, actions::assertions, scenario::Scenario};
 use saddle_camera_orbit_camera::OrbitCamera;
+use saddle_world_voxel_world_example_support as support;
 
-use crate::{LabPrimaryViewer, LabSecondaryViewer, LabUiMode, SecondaryViewerEnabled};
+use crate::{
+    LabOverlay, LabPrimaryViewer, LabSecondaryViewer, LabUiMode, SecondaryViewerEnabled,
+};
 
 pub fn list_scenarios() -> Vec<&'static str> {
     vec![
@@ -48,7 +55,8 @@ fn voxel_smoke_launch() -> Scenario {
             assert!(chunk_count > 0);
             assert!(stats.loaded_chunks > 0 || stats.generated_chunks > 0);
         })))
-        .then(Action::Screenshot("voxel_smoke_launch".into()))
+        .then(capture_window_screenshot("voxel_smoke_launch"))
+        .then(Action::WaitFrames(20))
         .then(assertions::log_summary("voxel_smoke_launch"))
         .build()
 }
@@ -67,16 +75,21 @@ fn voxel_terrain_generation() -> Scenario {
             assert!(stats.meshed_chunks > 0 || stats.remeshed_chunks > 0);
             world.resource_mut::<LabUiMode>().0 = "terrain".into();
         })))
-        .then(Action::Screenshot("terrain_near".into()))
+        .then(capture_window_screenshot("terrain_near"))
+        .then(Action::WaitFrames(20))
         .then(Action::Custom(Box::new(|world| {
             retarget_primary_camera(world, Vec3::new(36.0, 24.0, -12.0), Vec3::new(0.0, 6.0, 0.0));
         })))
         .then(Action::WaitFrames(50))
         .then(Action::Custom(Box::new(|world| {
-            let overlay = world.query::<&Text>().iter(world).next().unwrap();
+            let overlay = world
+                .query_filtered::<&Text, With<LabOverlay>>()
+                .single(world)
+                .unwrap();
             assert!(overlay.0.contains("chunks"));
         })))
-        .then(Action::Screenshot("terrain_far".into()))
+        .then(capture_window_screenshot("terrain_far"))
+        .then(Action::WaitFrames(20))
         .then(assertions::log_summary("voxel_terrain_generation"))
         .build()
 }
@@ -93,7 +106,8 @@ fn voxel_streaming_motion() -> Scenario {
                 .collect::<HashSet<_>>();
             world.insert_resource(ChunkSetSnapshot(snapshot));
         })))
-        .then(Action::Screenshot("streaming_start".into()))
+        .then(capture_window_screenshot("streaming_start"))
+        .then(Action::WaitFrames(20))
         .then(Action::Custom(Box::new(|world| {
             retarget_primary_camera(world, Vec3::new(72.0, 30.0, 64.0), Vec3::new(52.0, 8.0, 44.0));
         })))
@@ -116,7 +130,8 @@ fn voxel_streaming_motion() -> Scenario {
             assert!(new_chunks > 0);
             assert!(after.len() <= max_loaded);
         })))
-        .then(Action::Screenshot("streaming_end".into()))
+        .then(capture_window_screenshot("streaming_end"))
+        .then(Action::WaitFrames(20))
         .then(assertions::log_summary("voxel_streaming_motion"))
         .build()
 }
@@ -125,16 +140,24 @@ fn voxel_block_editing() -> Scenario {
     Scenario::builder("voxel_block_editing")
         .description("Issue edits near a chunk border, wait for remeshing, and verify the stats reflect the edit workload.")
         .then(Action::WaitFrames(60))
-        .then(Action::Screenshot("editing_before".into()))
+        .then(capture_window_screenshot("editing_before"))
+        .then(Action::WaitFrames(20))
         .then(Action::Custom(Box::new(|world| {
             let config = world.resource::<saddle_world_voxel_world::VoxelWorldConfig>().clone();
+            let generator = world
+                .resource::<saddle_world_voxel_world::VoxelWorldGenerator>()
+                .clone();
             let targets = [IVec3::new(15, 10, 0), IVec3::new(16, 10, 0)];
             let edits = targets
                 .into_iter()
                 .map(|world_pos| {
-                    let current = saddle_world_voxel_world::sample_generated_block(world_pos, &config);
+                    let current = saddle_world_voxel_world::sample_generated_block(
+                        world_pos,
+                        &config,
+                        &generator,
+                    );
                     let block = if current == saddle_world_voxel_world::BlockId::AIR {
-                        saddle_world_voxel_world::BlockId::LAMP
+                        support::SHOWCASE_LAMP
                     } else {
                         saddle_world_voxel_world::BlockId::AIR
                     };
@@ -156,7 +179,8 @@ fn voxel_block_editing() -> Scenario {
             assert!(stats.block_modifications >= 2);
             assert!(stats.remeshed_chunks > 0);
         })))
-        .then(Action::Screenshot("editing_after".into()))
+        .then(capture_window_screenshot("editing_after"))
+        .then(Action::WaitFrames(20))
         .then(assertions::log_summary("voxel_block_editing"))
         .build()
 }
@@ -170,7 +194,8 @@ fn voxel_multi_viewer() -> Scenario {
             world.insert_resource(ChunkCountSnapshot(count));
             world.resource_mut::<LabUiMode>().0 = "single viewer".into();
         })))
-        .then(Action::Screenshot("multi_viewer_before".into()))
+        .then(capture_window_screenshot("multi_viewer_before"))
+        .then(Action::WaitFrames(20))
         .then(Action::Custom(Box::new(|world| {
             world.resource_mut::<SecondaryViewerEnabled>().0 = true;
             let secondary = world
@@ -191,7 +216,8 @@ fn voxel_multi_viewer() -> Scenario {
             let after = world.query::<&saddle_world_voxel_world::ChunkPos>().iter(world).count();
             assert!(after >= before);
         })))
-        .then(Action::Screenshot("multi_viewer_after".into()))
+        .then(capture_window_screenshot("multi_viewer_after"))
+        .then(Action::WaitFrames(20))
         .then(assertions::log_summary("voxel_multi_viewer"))
         .build()
 }
@@ -213,4 +239,31 @@ fn retarget_primary_camera(world: &mut World, eye: Vec3, focus: Vec3) {
     camera.focus_on(focus);
     camera.set_target_angles(yaw, pitch);
     camera.set_target_distance(distance);
+}
+
+fn capture_window_screenshot(name: &str) -> Action {
+    let name = name.to_string();
+    Action::Custom(Box::new(move |world| {
+        let frame = world
+            .resource::<saddle_bevy_e2e::runner::ScenarioRunner>()
+            .total_frames;
+        let output_dir = world
+            .resource::<saddle_bevy_e2e::capture::CaptureState>()
+            .output_dir
+            .clone();
+        std::fs::create_dir_all(&output_dir)
+            .expect("lab E2E should be able to create the screenshot output directory");
+        let window = world
+            .query_filtered::<Entity, With<PrimaryWindow>>()
+            .single(world)
+            .expect("primary window should exist during lab E2E");
+        world
+            .resource_mut::<saddle_bevy_e2e::capture::CaptureState>()
+            .log(format!("[frame {frame}] Screenshot({name:?})"));
+
+        let mut commands = world.commands();
+        commands
+            .spawn(Screenshot::window(window))
+            .observe(save_to_disk(output_dir.join(format!("{name}.png"))));
+    }))
 }

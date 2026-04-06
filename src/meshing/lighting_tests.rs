@@ -22,7 +22,7 @@ fn skylight_fills_open_columns_and_wraps_around_obstacles() {
     padded.set(
         IVec3::new(1, 1, 1),
         crate::meshing::SampledBlock {
-            id: BlockId::STONE,
+            id: BlockId::SOLID,
             known: true,
         },
     );
@@ -55,7 +55,7 @@ fn emissive_blocks_seed_neighboring_air_cells() {
     padded.set(
         IVec3::new(1, 1, 1),
         crate::meshing::SampledBlock {
-            id: BlockId::LAMP,
+            id: BlockId::EMISSIVE,
             known: true,
         },
     );

@@ -6,7 +6,7 @@ use crate::{BlockId, BlockRegistry, ChunkData, VoxelWorldConfig};
 #[test]
 fn cross_meshing_emits_two_quads_per_cross_block() {
     let mut chunk = ChunkData::new_filled(UVec3::splat(2), BlockId::AIR);
-    chunk.set(UVec3::new(0, 0, 0), BlockId::TALL_GRASS);
+    chunk.set(UVec3::new(0, 0, 0), BlockId::CROSS);
     let mut buffers = MeshBuffers::default();
     let mut counts = MeshCounts::default();
     emit_cross_quads(
@@ -24,8 +24,8 @@ fn cross_meshing_emits_two_quads_per_cross_block() {
 #[test]
 fn separate_cross_blocks_do_not_merge() {
     let mut chunk = ChunkData::new_filled(UVec3::new(2, 1, 1), BlockId::AIR);
-    chunk.set(UVec3::new(0, 0, 0), BlockId::TALL_GRASS);
-    chunk.set(UVec3::new(1, 0, 0), BlockId::TALL_GRASS);
+    chunk.set(UVec3::new(0, 0, 0), BlockId::CROSS);
+    chunk.set(UVec3::new(1, 0, 0), BlockId::CROSS);
     let mut buffers = MeshBuffers::default();
     let mut counts = MeshCounts::default();
     emit_cross_quads(

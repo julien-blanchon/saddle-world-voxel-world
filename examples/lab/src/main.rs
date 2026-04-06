@@ -10,6 +10,8 @@ use bevy::{
     prelude::*,
     remote::{RemotePlugin, http::RemoteHttpPlugin},
 };
+#[cfg(feature = "e2e")]
+use bevy::winit::WinitSettings;
 use saddle_camera_orbit_camera::{OrbitCamera, OrbitCameraInputTarget, OrbitCameraPlugin};
 use saddle_pane::prelude::*;
 use saddle_world_voxel_world::{
@@ -41,6 +43,10 @@ fn main() {
 
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb(0.60, 0.76, 0.92)));
+    #[cfg(feature = "e2e")]
+    app.insert_resource(WinitSettings::continuous());
+    app.insert_resource(support::showcase_registry());
+    app.insert_resource(support::showcase_generator());
     app.insert_resource(config);
     app.insert_resource(support::VoxelExamplePane {
         show_chunk_bounds: true,
@@ -85,6 +91,8 @@ fn main() {
             update_overlay,
         ),
     );
+    #[cfg(feature = "e2e")]
+    app.add_systems(Update, exit_finished_e2e.after(saddle_bevy_e2e::E2ESet));
     app.run();
 }
 
@@ -182,7 +190,7 @@ fn handle_debug_keys(
             },
             saddle_world_voxel_world::BlockEdit {
                 world_pos: IVec3::new(16, 10, 0),
-                block: saddle_world_voxel_world::BlockId::LAMP,
+                block: support::SHOWCASE_LAMP,
             },
         ]));
         mode.0 = "manual edit burst".into();
@@ -217,7 +225,7 @@ fn update_overlay(
     };
     let count = chunks.iter().count();
     overlay.0 = format!(
-        "Voxel World Lab\nmode: {}\ncontrols: LMB orbit | MMB pan | wheel zoom | Space secondary viewer | E edit burst | R reset\nchunks: {}\nloaded={} meshed={} dirty={} unloaded={}\ngen_jobs={} mesh_jobs={} remeshes={}\nblock_modifications={}",
+        "Voxel World Lab\npreset: optional showcase resources layered on the generic crate\nmode: {}\ncontrols: LMB orbit | MMB pan | wheel zoom | Space secondary viewer | E edit burst | R reset\nchunks: {}\nloaded={} meshed={} dirty={} unloaded={}\ngen_jobs={} mesh_jobs={} remeshes={}\nblock_modifications={}",
         mode.0,
         count,
         stats.loaded_chunks,
@@ -229,4 +237,28 @@ fn update_overlay(
         stats.remeshed_chunks,
         stats.block_modifications,
     );
+}
+
+#[cfg(feature = "e2e")]
+fn exit_finished_e2e(
+    runner: Option<Res<saddle_bevy_e2e::runner::ScenarioRunner>>,
+    capture: Option<Res<saddle_bevy_e2e::capture::CaptureState>>,
+    mut sent: Local<bool>,
+) {
+    if *sent {
+        return;
+    }
+
+    let Some(runner) = runner else {
+        return;
+    };
+    if !runner.finished || runner.handoff {
+        return;
+    }
+    if capture.as_ref().is_some_and(|capture| capture.pending_stitch) {
+        return;
+    }
+
+    *sent = true;
+    std::process::exit(0);
 }

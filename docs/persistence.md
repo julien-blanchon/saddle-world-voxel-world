@@ -4,7 +4,7 @@
 
 The shipped persistence path is intentionally conservative:
 
-- generated terrain is reproducible from `seed + generator config`
+- generated chunks are reproducible from `seed + the active sampler/decorator stack`
 - only edited voxels are persisted
 - edits are grouped into region files
 - save compatibility is checked with `seed` and `generator_version`
@@ -111,7 +111,7 @@ If either value differs from the save file header, the runtime ignores the file 
 Recommended policy:
 
 - keep `seed` stable for one world/save slot
-- bump `generator_version` when terrain meaning changes incompatibly, such as layer ordering, cave thresholds, or structure placement rules
+- bump `generator_version` when sampler or decoration meaning changes incompatibly, such as layer ordering, structure placement rules, or block-ID remapping
 
 ## Corruption Handling
 

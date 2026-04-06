@@ -18,6 +18,9 @@ target
 # RustRover
 #.idea/
 
+# Lab E2E artifacts
+examples/e2e_output/
+
 
 ## Mac Os
 

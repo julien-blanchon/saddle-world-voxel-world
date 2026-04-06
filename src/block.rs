@@ -6,15 +6,13 @@ pub struct BlockId(pub u16);
 
 impl BlockId {
     pub const AIR: Self = Self(0);
-    pub const GRASS: Self = Self(1);
-    pub const DIRT: Self = Self(2);
-    pub const STONE: Self = Self(3);
-    pub const SAND: Self = Self(4);
-    pub const WATER: Self = Self(5);
-    pub const TALL_GRASS: Self = Self(6);
-    pub const LAMP: Self = Self(7);
-    pub const WOOD: Self = Self(8);
-    pub const LEAVES: Self = Self(9);
+    pub const SOLID: Self = Self(1);
+    pub const SOLID_ALT: Self = Self(2);
+    pub const SOLID_ACCENT: Self = Self(3);
+    pub const NON_SOLID: Self = Self(4);
+    pub const CROSS: Self = Self(5);
+    pub const EMISSIVE: Self = Self(6);
+    pub const CUTOUT_SOLID: Self = Self(7);
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
@@ -72,6 +70,21 @@ pub struct BlockDefinition {
 
 impl BlockDefinition {
     #[must_use]
+    pub fn air() -> Self {
+        Self {
+            id: BlockId::AIR,
+            name: "Air".into(),
+            mesh_kind: MeshKind::Empty,
+            material_class: MaterialClass::Opaque,
+            solid: false,
+            opaque: false,
+            collision: CollisionKind::None,
+            emissive_level: 0,
+            atlas: BlockFaceAtlas::uniform(0),
+        }
+    }
+
+    #[must_use]
     pub fn renders_cube_face(&self) -> bool {
         self.mesh_kind == MeshKind::Cube && self.solid
     }
@@ -90,36 +103,33 @@ pub struct BlockRegistry {
 
 impl Default for BlockRegistry {
     fn default() -> Self {
-        let blocks = vec![
+        Self::from_blocks(vec![
+            BlockDefinition::air(),
             BlockDefinition {
-                id: BlockId::AIR,
-                name: "Air".into(),
-                mesh_kind: MeshKind::Empty,
-                material_class: MaterialClass::Opaque,
-                solid: false,
-                opaque: false,
-                collision: CollisionKind::None,
-                emissive_level: 0,
-                atlas: BlockFaceAtlas::uniform(0),
-            },
-            BlockDefinition {
-                id: BlockId::GRASS,
-                name: "Grass".into(),
+                id: BlockId::SOLID,
+                name: "Solid".into(),
                 mesh_kind: MeshKind::Cube,
                 material_class: MaterialClass::Opaque,
                 solid: true,
                 opaque: true,
                 collision: CollisionKind::Solid,
                 emissive_level: 0,
-                atlas: BlockFaceAtlas {
-                    top: 1,
-                    sides: 2,
-                    bottom: 3,
-                },
+                atlas: BlockFaceAtlas::uniform(1),
             },
             BlockDefinition {
-                id: BlockId::DIRT,
-                name: "Dirt".into(),
+                id: BlockId::SOLID_ALT,
+                name: "Solid Alt".into(),
+                mesh_kind: MeshKind::Cube,
+                material_class: MaterialClass::Opaque,
+                solid: true,
+                opaque: true,
+                collision: CollisionKind::Solid,
+                emissive_level: 0,
+                atlas: BlockFaceAtlas::uniform(2),
+            },
+            BlockDefinition {
+                id: BlockId::SOLID_ACCENT,
+                name: "Solid Accent".into(),
                 mesh_kind: MeshKind::Cube,
                 material_class: MaterialClass::Opaque,
                 solid: true,
@@ -129,96 +139,68 @@ impl Default for BlockRegistry {
                 atlas: BlockFaceAtlas::uniform(3),
             },
             BlockDefinition {
-                id: BlockId::STONE,
-                name: "Stone".into(),
-                mesh_kind: MeshKind::Cube,
-                material_class: MaterialClass::Opaque,
-                solid: true,
-                opaque: true,
-                collision: CollisionKind::Solid,
-                emissive_level: 0,
-                atlas: BlockFaceAtlas::uniform(4),
-            },
-            BlockDefinition {
-                id: BlockId::SAND,
-                name: "Sand".into(),
-                mesh_kind: MeshKind::Cube,
-                material_class: MaterialClass::Opaque,
-                solid: true,
-                opaque: true,
-                collision: CollisionKind::Solid,
-                emissive_level: 0,
-                atlas: BlockFaceAtlas::uniform(5),
-            },
-            BlockDefinition {
-                id: BlockId::WATER,
-                name: "Water".into(),
+                id: BlockId::NON_SOLID,
+                name: "Non Solid".into(),
                 mesh_kind: MeshKind::Empty,
                 material_class: MaterialClass::Cutout,
                 solid: false,
                 opaque: false,
                 collision: CollisionKind::None,
                 emissive_level: 0,
-                atlas: BlockFaceAtlas::uniform(6),
+                atlas: BlockFaceAtlas::uniform(4),
             },
             BlockDefinition {
-                id: BlockId::TALL_GRASS,
-                name: "Tall Grass".into(),
+                id: BlockId::CROSS,
+                name: "Cross".into(),
                 mesh_kind: MeshKind::Cross,
                 material_class: MaterialClass::Cutout,
                 solid: false,
                 opaque: false,
                 collision: CollisionKind::None,
                 emissive_level: 0,
-                atlas: BlockFaceAtlas::uniform(7),
+                atlas: BlockFaceAtlas::uniform(5),
             },
             BlockDefinition {
-                id: BlockId::LAMP,
-                name: "Lamp".into(),
+                id: BlockId::EMISSIVE,
+                name: "Emissive".into(),
                 mesh_kind: MeshKind::Cube,
                 material_class: MaterialClass::Opaque,
                 solid: true,
                 opaque: true,
                 collision: CollisionKind::Solid,
                 emissive_level: 12,
-                atlas: BlockFaceAtlas::uniform(8),
+                atlas: BlockFaceAtlas::uniform(6),
             },
             BlockDefinition {
-                id: BlockId::WOOD,
-                name: "Wood".into(),
-                mesh_kind: MeshKind::Cube,
-                material_class: MaterialClass::Opaque,
-                solid: true,
-                opaque: true,
-                collision: CollisionKind::Solid,
-                emissive_level: 0,
-                atlas: BlockFaceAtlas {
-                    top: 10,
-                    sides: 9,
-                    bottom: 10,
-                },
-            },
-            BlockDefinition {
-                id: BlockId::LEAVES,
-                name: "Leaves".into(),
+                id: BlockId::CUTOUT_SOLID,
+                name: "Cutout Solid".into(),
                 mesh_kind: MeshKind::Cube,
                 material_class: MaterialClass::Cutout,
                 solid: true,
                 opaque: false,
                 collision: CollisionKind::Solid,
                 emissive_level: 0,
-                atlas: BlockFaceAtlas::uniform(11),
+                atlas: BlockFaceAtlas::uniform(7),
             },
-        ];
-
-        Self { blocks }
+        ])
     }
 }
 
 impl BlockRegistry {
     #[must_use]
     pub fn from_blocks(blocks: Vec<BlockDefinition>) -> Self {
-        Self { blocks }
+        let max_index = blocks
+            .iter()
+            .map(|block| block.id.0 as usize)
+            .max()
+            .unwrap_or(BlockId::AIR.0 as usize)
+            .max(BlockId::AIR.0 as usize);
+        let mut indexed = vec![BlockDefinition::air(); max_index + 1];
+        for block in blocks {
+            let index = block.id.0 as usize;
+            indexed[index] = block;
+        }
+        Self { blocks: indexed }
     }
 
     #[must_use]
@@ -231,6 +213,11 @@ impl BlockRegistry {
     #[must_use]
     pub fn contains(&self, id: BlockId) -> bool {
         self.blocks.get(id.0 as usize).is_some()
+    }
+
+    #[must_use]
+    pub fn definitions(&self) -> &[BlockDefinition] {
+        &self.blocks
     }
 
     #[must_use]

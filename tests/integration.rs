@@ -1,8 +1,9 @@
 use bevy::{asset::Assets, ecs::system::SystemState, prelude::*};
 use saddle_world_voxel_world::{
     BlockEdit, BlockId, BlockModified, ChunkLifecycle, ChunkPos, ChunkStatus, ChunkViewer,
-    VoxelCommand, VoxelDebugConfig, VoxelWorldConfig, VoxelWorldPlugin, VoxelWorldRoot,
-    VoxelWorldSystems, VoxelWorldView, sample_generated_block, world_to_chunk,
+    VoxelBlockSampler, VoxelCommand, VoxelDebugConfig, VoxelDecorationHook, VoxelWorldConfig,
+    VoxelWorldGenerator, VoxelWorldPlugin, VoxelWorldRoot, VoxelWorldSystems, VoxelWorldView,
+    sample_generated_block, world_to_chunk,
 };
 
 #[derive(Resource, Default)]
@@ -24,6 +25,24 @@ fn make_app_with_config(config: VoxelWorldConfig) -> App {
     app.init_resource::<VoxelDebugConfig>();
     app.init_resource::<ModifiedEvents>();
     app.insert_resource(config);
+    app.add_plugins(VoxelWorldPlugin::default());
+    app.add_systems(
+        Update,
+        capture_block_modified.after(VoxelWorldSystems::Edits),
+    );
+    app
+}
+
+fn make_app_with_generator(config: VoxelWorldConfig, generator: VoxelWorldGenerator) -> App {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.insert_resource(Assets::<Image>::default());
+    app.insert_resource(Assets::<Mesh>::default());
+    app.insert_resource(Assets::<StandardMaterial>::default());
+    app.init_resource::<VoxelDebugConfig>();
+    app.init_resource::<ModifiedEvents>();
+    app.insert_resource(config);
+    app.insert_resource(generator);
     app.add_plugins(VoxelWorldPlugin::default());
     app.add_systems(
         Update,
@@ -94,6 +113,33 @@ struct PrimaryViewer;
 #[derive(Component)]
 struct SecondaryViewer;
 
+#[derive(Clone)]
+struct RaisedPlatformSampler;
+
+impl VoxelBlockSampler for RaisedPlatformSampler {
+    fn sample_block(&self, world_pos: IVec3, _config: &VoxelWorldConfig) -> BlockId {
+        if world_pos.y <= 2 && world_pos.x.abs() <= 1 && world_pos.z.abs() <= 1 {
+            BlockId::SOLID_ACCENT
+        } else {
+            BlockId::AIR
+        }
+    }
+}
+
+#[derive(Clone)]
+struct MarkerDecoration;
+
+impl VoxelDecorationHook for MarkerDecoration {
+    fn decorate_block(
+        &self,
+        world_pos: IVec3,
+        sampled: BlockId,
+        _config: &VoxelWorldConfig,
+    ) -> Option<BlockId> {
+        (sampled == BlockId::AIR && world_pos == IVec3::new(0, 3, 0)).then_some(BlockId::EMISSIVE)
+    }
+}
+
 #[test]
 fn plugin_initializes_without_panic() {
     let mut app = make_app();
@@ -147,10 +193,14 @@ fn block_edit_triggers_dirty_chunk_and_emitted_message() {
     });
 
     let config = app.world().resource::<VoxelWorldConfig>().clone();
+    let generator = app
+        .world()
+        .resource::<saddle_world_voxel_world::VoxelWorldGenerator>()
+        .clone();
     let world_pos = IVec3::new(0, 10, 0);
-    let current = sample_generated_block(world_pos, &config);
+    let current = sample_generated_block(world_pos, &config, &generator);
     let replacement = if current == BlockId::AIR {
-        BlockId::STONE
+        BlockId::SOLID
     } else {
         BlockId::AIR
     };
@@ -216,6 +266,30 @@ fn neighbor_generation_triggers_boundary_remesh() {
         .world()
         .resource::<saddle_world_voxel_world::VoxelWorldStats>();
     assert!(stats.remeshed_chunks >= 3);
+}
+
+#[test]
+fn custom_generator_resource_drives_runtime_generation() {
+    let generator =
+        VoxelWorldGenerator::new(RaisedPlatformSampler).with_decoration(MarkerDecoration);
+    let mut app = make_app_with_generator(VoxelWorldConfig::default(), generator);
+    spawn_viewer(&mut app, Vec3::new(0.5, 6.0, 0.5), PrimaryViewer);
+    run_until(&mut app, 180, |app| {
+        let mut system_state = SystemState::<VoxelWorldView>::new(app.world_mut());
+        let view = system_state.get(app.world_mut());
+        view.sample_loaded_block(IVec3::new(0, 3, 0)) == Some(BlockId::EMISSIVE)
+    });
+
+    let mut system_state = SystemState::<VoxelWorldView>::new(app.world_mut());
+    let view = system_state.get(app.world_mut());
+    assert_eq!(
+        view.sample_loaded_block(IVec3::new(0, 2, 0)),
+        Some(BlockId::SOLID_ACCENT)
+    );
+    assert_eq!(
+        view.sample_loaded_block(IVec3::new(0, 3, 0)),
+        Some(BlockId::EMISSIVE)
+    );
 }
 
 #[test]

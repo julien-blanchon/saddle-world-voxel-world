@@ -13,12 +13,12 @@ fn chunk_index_mapping_is_stable() {
 fn chunk_get_set_corners_and_center() {
     let dims = UVec3::new(4, 4, 4);
     let mut chunk = ChunkData::new_filled(dims, BlockId::AIR);
-    chunk.set(UVec3::ZERO, BlockId::STONE);
-    chunk.set(UVec3::new(3, 3, 3), BlockId::DIRT);
-    chunk.set(UVec3::new(2, 2, 2), BlockId::GRASS);
-    assert_eq!(chunk.get(UVec3::ZERO), BlockId::STONE);
-    assert_eq!(chunk.get(UVec3::new(3, 3, 3)), BlockId::DIRT);
-    assert_eq!(chunk.get(UVec3::new(2, 2, 2)), BlockId::GRASS);
+    chunk.set(UVec3::ZERO, BlockId::SOLID);
+    chunk.set(UVec3::new(3, 3, 3), BlockId::SOLID_ALT);
+    chunk.set(UVec3::new(2, 2, 2), BlockId::SOLID_ACCENT);
+    assert_eq!(chunk.get(UVec3::ZERO), BlockId::SOLID);
+    assert_eq!(chunk.get(UVec3::new(3, 3, 3)), BlockId::SOLID_ALT);
+    assert_eq!(chunk.get(UVec3::new(2, 2, 2)), BlockId::SOLID_ACCENT);
 }
 
 #[test]
@@ -32,9 +32,9 @@ fn chunk_uniform_and_empty_checks_work() {
 #[test]
 fn delta_from_overrides_preserves_indices() {
     let mut overrides = std::collections::BTreeMap::new();
-    overrides.insert(3, BlockId::DIRT);
-    overrides.insert(11, BlockId::STONE);
+    overrides.insert(3, BlockId::SOLID_ALT);
+    overrides.insert(11, BlockId::SOLID);
     let delta = delta_from_overrides(&overrides);
     assert_eq!(delta[0].local_index, 3);
-    assert_eq!(delta[1].block, BlockId::STONE);
+    assert_eq!(delta[1].block, BlockId::SOLID);
 }

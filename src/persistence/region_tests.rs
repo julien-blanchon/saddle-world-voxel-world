@@ -14,14 +14,14 @@ fn region_roundtrip_persists_chunk_deltas() {
         ..SavePolicy::default()
     };
     let mut overrides = std::collections::BTreeMap::new();
-    overrides.insert(1, BlockId::DIRT);
-    overrides.insert(7, BlockId::STONE);
+    overrides.insert(1, BlockId::SOLID_ALT);
+    overrides.insert(7, BlockId::SOLID);
     save_chunk_delta(&policy, IVec3::new(2, 0, -1), 42, 7, 3, &overrides).unwrap();
     let loaded = load_chunk_delta(&policy, IVec3::new(2, 0, -1), 42, 7)
         .unwrap()
         .unwrap();
     assert_eq!(loaded.len(), 2);
-    assert_eq!(loaded[0].block, BlockId::DIRT);
+    assert_eq!(loaded[0].block, BlockId::SOLID_ALT);
 }
 
 #[test]
@@ -33,7 +33,7 @@ fn version_mismatch_is_ignored() {
         ..SavePolicy::default()
     };
     let mut overrides = std::collections::BTreeMap::new();
-    overrides.insert(2, BlockId::LAMP);
+    overrides.insert(2, BlockId::EMISSIVE);
     save_chunk_delta(&policy, IVec3::ZERO, 42, 7, 1, &overrides).unwrap();
 
     assert!(
@@ -58,11 +58,11 @@ fn corrupt_entry_is_skipped_without_poisoning_other_chunks() {
     };
 
     let mut first = std::collections::BTreeMap::new();
-    first.insert(1, BlockId::DIRT);
+    first.insert(1, BlockId::SOLID_ALT);
     save_chunk_delta(&policy, IVec3::new(0, 0, 0), 7, 1, 1, &first).unwrap();
 
     let mut second = std::collections::BTreeMap::new();
-    second.insert(9, BlockId::STONE);
+    second.insert(9, BlockId::SOLID);
     save_chunk_delta(&policy, IVec3::new(1, 0, 0), 7, 1, 1, &second).unwrap();
 
     let path = region_path(&root, IVec3::ZERO);
@@ -79,7 +79,7 @@ fn corrupt_entry_is_skipped_without_poisoning_other_chunks() {
         .unwrap()
         .unwrap();
     assert_eq!(loaded_second.len(), 1);
-    assert_eq!(loaded_second[0].block, BlockId::STONE);
+    assert_eq!(loaded_second[0].block, BlockId::SOLID);
 }
 
 #[test]
@@ -91,7 +91,7 @@ fn empty_overrides_remove_region_file_entry() {
         ..SavePolicy::default()
     };
     let mut overrides = std::collections::BTreeMap::new();
-    overrides.insert(3, BlockId::DIRT);
+    overrides.insert(3, BlockId::SOLID_ALT);
     save_chunk_delta(&policy, IVec3::ZERO, 2, 1, 1, &overrides).unwrap();
     save_chunk_delta(
         &policy,

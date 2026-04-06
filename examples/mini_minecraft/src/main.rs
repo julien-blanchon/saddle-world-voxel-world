@@ -1,8 +1,8 @@
 //! Mini-Minecraft — a playable voxel sandbox demo.
 //!
 //! Demonstrates the full voxel-world pipeline in an interactive first-person
-//! game: FPS camera, block placement/breaking, procedural terrain with trees,
-//! dynamic chunk streaming, and a simple HUD.
+//! game: FPS camera, block placement/breaking, the optional showcase terrain
+//! preset from example support, dynamic chunk streaming, and a simple HUD.
 //!
 //! # Controls
 //! - **WASD** — Move
@@ -20,14 +20,18 @@ use bevy::{
     prelude::*,
     window::{CursorGrabMode, CursorOptions},
 };
+use saddle_pane::prelude::*;
 use saddle_world_voxel_world::{
     BlockEdit, BlockId, BlockRegistry, ChunkViewer, ChunkViewerSettings, SaveMode, SavePolicy,
     VoxelCommand, VoxelWorldConfig, VoxelWorldPlugin, VoxelWorldStats, raycast_blocks,
 };
+use saddle_world_voxel_world_example_support as support;
 
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::srgb(0.53, 0.74, 0.93)))
+        .insert_resource(support::showcase_registry())
+        .insert_resource(support::showcase_generator())
         .insert_resource(VoxelWorldConfig {
             request_radius: 8,
             keep_radius: 10,
@@ -41,6 +45,7 @@ fn main() {
             },
             ..VoxelWorldConfig::default()
         })
+        .insert_resource(support::VoxelExamplePane::default())
         .insert_resource(PlayerState::default())
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -50,11 +55,14 @@ fn main() {
             }),
             ..default()
         }))
+        .add_plugins(support::pane_plugins())
+        .register_pane::<support::VoxelExamplePane>()
         .add_plugins(VoxelWorldPlugin::default())
         .add_systems(Startup, setup_scene)
         .add_systems(
             Update,
             (
+                support::sync_example_pane,
                 toggle_cursor_grab,
                 fps_camera_look,
                 fps_camera_move,
@@ -96,22 +104,13 @@ impl Default for PlayerState {
         Self {
             yaw: 0.0,
             pitch: 0.0,
-            selected_block: BlockId::STONE,
+            selected_block: support::SHOWCASE_STONE,
             selected_index: 2,
             cursor_grabbed: true,
             show_debug: false,
         }
     }
 }
-
-const BLOCK_PALETTE: [(BlockId, &str); 6] = [
-    (BlockId::GRASS, "Grass"),
-    (BlockId::DIRT, "Dirt"),
-    (BlockId::STONE, "Stone"),
-    (BlockId::SAND, "Sand"),
-    (BlockId::WOOD, "Wood"),
-    (BlockId::LEAVES, "Leaves"),
-];
 
 fn setup_scene(mut commands: Commands, mut cursor_opts: Query<&mut CursorOptions, With<Window>>) {
     // Grab cursor on startup
@@ -333,7 +332,7 @@ fn block_select(keyboard: Res<ButtonInput<KeyCode>>, mut state: ResMut<PlayerSta
     for (i, key) in keys.iter().enumerate() {
         if keyboard.just_pressed(*key) {
             state.selected_index = i;
-            state.selected_block = BLOCK_PALETTE[i].0;
+            state.selected_block = support::SHOWCASE_PLACEABLE_BLOCKS[i].0;
         }
     }
 }
@@ -407,9 +406,9 @@ fn update_crosshair(
 }
 
 fn update_hud_text(state: Res<PlayerState>, mut texts: Query<&mut Text, With<HudText>>) {
-    let block_name = BLOCK_PALETTE[state.selected_index].1;
+    let block_name = support::SHOWCASE_PLACEABLE_BLOCKS[state.selected_index].1;
     let mut bar = String::new();
-    for (i, (_, name)) in BLOCK_PALETTE.iter().enumerate() {
+    for (i, (_, name)) in support::SHOWCASE_PLACEABLE_BLOCKS.iter().enumerate() {
         if i == state.selected_index {
             bar.push_str(&format!("[{}: {}] ", i + 1, name));
         } else {

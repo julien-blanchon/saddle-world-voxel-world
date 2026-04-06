@@ -1,6 +1,6 @@
 # `saddle-world-voxel-world` Configuration
 
-This file documents the public tuning surface of the crate. Defaults target a small rolling terrain showcase with one viewer, generated atlas colors, greedy opaque meshing, and persistence disabled.
+This file documents the public tuning surface of the crate. `VoxelWorldConfig` covers streaming, meshing, lighting, persistence, and atlas behavior. Block palettes and world generation live in separate resources so the core crate stays generic.
 
 ## `VoxelWorldConfig`
 
@@ -11,15 +11,65 @@ This file documents the public tuning surface of the crate. Defaults target a sm
 | `keep_radius` | `u32` | `8` | Must be `>= request_radius`. | Hysteresis radius. Chunks stay resident until they leave this larger radius. |
 | `max_chunk_requests_per_frame` | `u32` | `12` | Raise for faster catch-up, lower for smoother CPU spikes. | Budget for chunk entity creation and request promotion per frame. |
 | `max_chunk_unloads_per_frame` | `u32` | `8` | Raise for faster cleanup, lower for less despawn churn. | Budget for chunk unloads per frame. |
-| `max_generation_jobs_in_flight` | `usize` | `4` | Must be `> 0`. Tune against CPU cores and generator cost. | Async terrain generation concurrency cap. |
+| `max_generation_jobs_in_flight` | `usize` | `4` | Must be `> 0`. Tune against CPU cores and sampler cost. | Async generation concurrency cap. |
 | `max_mesh_jobs_in_flight` | `usize` | `4` | Must be `> 0`. Tune against chunk density and remesh frequency. | Async meshing concurrency cap. |
 | `seed` | `u64` | `1` | Any value is valid. Keep fixed for deterministic saves and tests. | Primary deterministic world seed. |
-| `generator_version` | `u32` | `1` | Bump when generator meaning changes incompatibly. | Save compatibility gate for region-delta loading. |
+| `generator_version` | `u32` | `1` | Bump when sampler or decoration meaning changes incompatibly. | Save compatibility gate for region-delta loading. |
 | `save_policy` | `SavePolicy` | disabled defaults | See below. | Persistence root, batching, and region layout. |
-| `terrain` | `TerrainConfig` | layered-noise defaults | See below. | Terrain generator selection and parameterization. |
 | `meshing` | `MeshingConfig` | greedy + AO defaults | See below. | Controls greedy meshing, AO, and unknown-neighbor face policy. |
-| `lighting` | `LightingConfig` | baked AO only | See below. | Current and future lighting-stage toggles. |
-| `atlas` | `AtlasConfig` | generated 4x3 atlas | See below. | Texture layout, UV inset, and optional asset-backed atlas. |
+| `lighting` | `LightingConfig` | baked AO defaults | See below. | Controls baked flood-fill lighting and brightness normalization. |
+| `atlas` | `AtlasConfig` | generated 4x3 debug atlas | See below. | Texture layout, UV inset, and optional asset-backed atlas. |
+
+## Generation Resources
+
+Generation is configured outside `VoxelWorldConfig` through two resources:
+
+- `BlockRegistry`: maps `BlockId` values to rendering, collision, and atlas behavior.
+- `VoxelWorldGenerator`: owns one base `VoxelBlockSampler` plus zero or more `VoxelDecorationHook`s.
+
+### `BlockRegistry`
+
+The core default registry is intentionally generic. It exists so the crate can run and test itself without assuming a biome or art style.
+
+Default IDs:
+
+- `AIR`
+- `SOLID`
+- `SOLID_ALT`
+- `SOLID_ACCENT`
+- `NON_SOLID`
+- `CROSS`
+- `EMISSIVE`
+- `CUTOUT_SOLID`
+
+Real projects should usually insert a custom `BlockRegistry` before adding `VoxelWorldPlugin`.
+
+### `VoxelWorldGenerator`
+
+`VoxelWorldGenerator` is built in code, not via reflection tables:
+
+- `VoxelWorldGenerator::new(sampler)` sets the base sampler.
+- `.with_decoration(hook)` appends a decoration stage.
+- decoration hooks run in insertion order and can replace the current sampled block.
+
+This separation is intentional:
+
+- streaming, meshing, persistence, and diagnostics stay independent of one world preset
+- games can swap in authored terrain, biome samplers, structure passes, or editor-fed chunk sources without changing plugin setup
+- examples and labs can carry richer presets without making them the crate contract
+
+### `FlatBlockSampler`
+
+The built-in fallback sampler is a generic flat plane.
+
+| Field | Type | Default | Guidance | Effect |
+| --- | --- | --- | --- | --- |
+| `surface_y` | `i32` | `0` | Raise or lower the plane. | Height of the visible surface layer. |
+| `surface_block` | `BlockId` | `SOLID_ALT` | Choose any registry ID. | Block used exactly on the surface plane. |
+| `fill_block` | `BlockId` | `SOLID` | Choose any solid or non-solid ID. | Block used below `surface_y`. |
+| `empty_block` | `BlockId` | `AIR` | Usually leave as `AIR`. | Block used above `surface_y`. |
+
+Use `FlatBlockSampler` for tests, debug flyovers, or as a starting point before inserting a custom sampler implementation.
 
 ## `SavePolicy`
 
@@ -30,21 +80,6 @@ This file documents the public tuning surface of the crate. Defaults target a sm
 | `region_dims` | `IVec3` | `8, 8, 8` | Keep every axis positive. Larger regions reduce file count; smaller regions reduce rewrite scope. | Chunk-space dimensions grouped into one region file. |
 | `autosave_interval_seconds` | `f32` | `10.0` | `0.0` effectively saves every frame budget window. | Minimum real-time interval between autosave sweeps. |
 | `max_chunks_per_frame` | `u32` | `2` | Raise for faster persistence, lower for steadier frame time. | Save batching cap during one autosave sweep. |
-
-## `TerrainConfig`
-
-| Field | Type | Default | Range / Guidance | Effect |
-| --- | --- | --- | --- | --- |
-| `generator` | `GeneratorKind` | `LayeredNoise` | `Flat` is useful for tests and debugging. | Selects the terrain sampling strategy. |
-| `base_height` | `i32` | `14` | Scene-scale dependent. | Baseline terrain elevation before hills. |
-| `height_amplitude` | `i32` | `18` | Raise for taller terrain; lower for flatter landscapes. | Peak contribution from the height noise field. |
-| `height_frequency` | `f32` | `0.012` | Lower values produce broader hills, higher values produce tighter terrain. | XY frequency of the main height field. |
-| `hill_octaves` | `u8` | `4` | `1` to `6` is a practical range. | Layer count for the 2D fBm height field. |
-| `cave_frequency` | `f32` | `0.06` | Higher values make denser, smaller cave features. | XYZ frequency of the cave noise field. |
-| `cave_threshold` | `f32` | `0.68` | Higher values carve fewer caves. | Threshold above which underground voxels become air. |
-| `water_level` | `i32` | `10` | Keep coherent with `base_height`. | Y level used for water fill and shoreline sand selection. |
-| `foliage_chance` | `f32` | `0.08` | Usually `0.0..=0.3`. | Chance factor for tall-grass decoration and tree placement (trees use `foliage_chance * 1.5`). |
-| `structure_version` | `u32` | `1` | Reserved for future structure passes. | Public version hook for future structure generation changes. |
 
 ## `MeshingConfig`
 
@@ -71,8 +106,8 @@ This file documents the public tuning surface of the crate. Defaults target a sm
 | Field | Type | Default | Range / Guidance | Effect |
 | --- | --- | --- | --- | --- |
 | `asset_path` | `Option<String>` | `None` | Provide a path when you want a real texture atlas. | If unset, the crate generates a small debug atlas image at runtime. |
-| `columns` | `u16` | `4` | Must cover the highest atlas tile used by the block registry. | Atlas grid width. |
-| `rows` | `u16` | `3` | Must cover the highest atlas tile used by the block registry. | Atlas grid height. |
+| `columns` | `u16` | `4` | Must cover the highest atlas tile used by the active block registry. | Atlas grid width. |
+| `rows` | `u16` | `3` | Must cover the highest atlas tile used by the active block registry. | Atlas grid height. |
 | `tile_size` | `UVec2` | `16, 16` | Keep square unless your atlas content requires otherwise. | Used for generated debug atlas dimensions and UV computation. |
 | `uv_inset` | `f32` | `0.02` | Small positive values reduce bleeding. | Shrinks UVs slightly inside the tile. |
 

@@ -16,7 +16,7 @@ impl BlockSampler for TestSampler {
 #[test]
 fn raycast_hits_block_and_returns_face_normal() {
     let sampler = TestSampler {
-        blocks: std::iter::once((IVec3::ZERO, BlockId::STONE)).collect(),
+        blocks: std::iter::once((IVec3::ZERO, BlockId::SOLID)).collect(),
     };
     let hit = raycast_blocks(
         &sampler,
@@ -50,7 +50,7 @@ fn raycast_misses_when_no_block_is_present() {
 #[test]
 fn raycast_honors_max_distance() {
     let sampler = TestSampler {
-        blocks: std::iter::once((IVec3::new(5, 0, 0), BlockId::STONE)).collect(),
+        blocks: std::iter::once((IVec3::new(5, 0, 0), BlockId::SOLID)).collect(),
     };
     assert!(
         raycast_blocks(
@@ -67,7 +67,7 @@ fn raycast_honors_max_distance() {
 #[test]
 fn raycast_handles_negative_coordinates() {
     let sampler = TestSampler {
-        blocks: std::iter::once((IVec3::new(-2, 0, 0), BlockId::STONE)).collect(),
+        blocks: std::iter::once((IVec3::new(-2, 0, 0), BlockId::SOLID)).collect(),
     };
     let hit = raycast_blocks(
         &sampler,
@@ -84,7 +84,7 @@ fn raycast_handles_negative_coordinates() {
 #[test]
 fn raycast_crosses_chunk_boundaries() {
     let sampler = TestSampler {
-        blocks: std::iter::once((IVec3::new(16, 0, 0), BlockId::STONE)).collect(),
+        blocks: std::iter::once((IVec3::new(16, 0, 0), BlockId::SOLID)).collect(),
     };
     let hit = raycast_blocks(
         &sampler,

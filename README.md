@@ -1,6 +1,6 @@
 # Saddle World Voxel World
 
-Reusable chunk-based voxel world streaming for Bevy. The crate owns chunk residency around one or more viewers, deterministic terrain generation, greedy plus cross meshing, block edits, delta persistence, raycast targeting, and BRP-friendly diagnostics.
+Reusable chunk-based voxel world streaming for Bevy. The crate owns chunk residency around one or more viewers, deterministic chunk generation through injected samplers, greedy plus cross meshing, block edits, delta persistence, raycast targeting, and BRP-friendly diagnostics.
 
 It stays project-agnostic: no project-specific crates, no game-state assumptions, and no required project assets. Consumers wire schedules, choose how block IDs map to gameplay meaning, and decide whether chunk messages should drive audio, AI, UI, or save policies.
 
@@ -53,16 +53,19 @@ fn setup(mut commands: Commands) {
 
 For examples, crate-local labs, and always-on tools, `VoxelWorldPlugin::default()` is the always-on entrypoint. It activates on `PostStartup`, never deactivates, and updates in `Update`.
 
+Before adding the plugin, insert custom `BlockRegistry` and `VoxelWorldGenerator` resources when you want your own block palette or worldgen contract. If you do nothing, the crate falls back to a small generic debug registry plus a flat sampler.
+
 ## Public API
 
 - Plugin: `VoxelWorldPlugin::new(activate_schedule, deactivate_schedule, update_schedule)` or `VoxelWorldPlugin::always_on(update_schedule)`
 - System sets: `VoxelWorldSystems::{Viewers, Streaming, Generation, Edits, Meshing, Collision, Lighting, Persistence, Diagnostics}`
 - Components: `ChunkPos`, `ChunkStatus`, `ChunkViewer`, `ChunkViewerSettings`, `VoxelWorldRoot`
-- Resources: `VoxelWorldConfig`, `VoxelWorldStats`, `VoxelDebugConfig`, `BlockRegistry`
+- Resources: `VoxelWorldConfig`, `VoxelWorldStats`, `VoxelDebugConfig`, `BlockRegistry`, `VoxelWorldGenerator`
 - Read-only access: `VoxelWorldView`
 - Edit path: `VoxelCommand::{SetBlock, Batch}` plus `BlockEdit`
 - Messages: `ChunkLoaded`, `ChunkUnloaded`, `BlockModified`
-- Core data types: `BlockId` (AIR, GRASS, DIRT, STONE, SAND, WATER, TALL_GRASS, LAMP, WOOD, LEAVES), `BlockDefinition`, `BlockFaceAtlas`, `ChunkData`, `ChunkLifecycle`
+- Core data types: `BlockId` (`AIR`, `SOLID`, `SOLID_ALT`, `SOLID_ACCENT`, `NON_SOLID`, `CROSS`, `EMISSIVE`, `CUTOUT_SOLID`), `BlockDefinition`, `BlockFaceAtlas`, `ChunkData`, `ChunkLifecycle`
+- Generation hooks: `VoxelBlockSampler`, `VoxelDecorationHook`, `FlatBlockSampler`
 - Helpers: coordinate conversions, `generate_chunk`, `sample_generated_block`, `raycast_blocks`, `save_chunk_delta`, `load_chunk_delta`, `encode_rle_blocks`, `decode_rle_blocks`
 
 ## Runtime Model
@@ -86,24 +89,22 @@ Edits go through one message-based mutation path:
 - meshing is re-queued only for the affected chunk set
 - `BlockModified` is emitted for downstream systems
 
-## Terrain Generation
+## Generation Contract
 
-The default `LayeredNoise` generator creates procedural terrain with:
+The core runtime no longer hardcodes one biome or palette. Generation is driven by a separate `VoxelWorldGenerator` resource:
 
-- Noise-based height map with configurable octaves, amplitude, and frequency
-- 3D cave carving using value noise
-- Layered block placement (grass, dirt, stone, sand near water)
-- Deterministic tree generation (wood trunks with spherical leaf canopy)
-- Scattered foliage (tall grass)
-- Scattered light sources (lamps)
+- one `VoxelBlockSampler` decides the base block for any world-space voxel
+- zero or more `VoxelDecorationHook`s can override that base sample for sparse features such as foliage, lights, props, or structures
+- `generate_chunk` and `sample_generated_block` stay deterministic because they read only `world_pos`, `VoxelWorldConfig`, and the injected generator resource
+- `generator_version` remains the save-compatibility knob when sampler or decoration meaning changes incompatibly
 
-All generation is deterministic: same seed produces the same world.
+The built-in fallback is a simple flat sampler using the generic debug registry. The richer rolling-terrain showcase now lives only in example support and the lab app.
 
 ## Rendering Notes
 
 - Opaque cube faces use greedy meshing for efficient draw calls.
-- Cutout cube blocks (leaves) use per-face emission with alpha-mask rendering.
-- Foliage-style blocks (tall grass) use a separate cross-mesh path with cutout material handling.
+- Cutout cube blocks use per-face emission with alpha-mask rendering.
+- Foliage-style blocks use a separate cross-mesh path with cutout material handling.
 - Monochrome skylight plus emissive flood-fill lighting are baked into vertex colors during mesh build.
 - AO is multiplied into that same vertex-color lighting stage during mesh build.
 - If `AtlasConfig::asset_path` is unset, the crate generates a 4x3 debug atlas at runtime so examples stay asset-free.
@@ -124,12 +125,12 @@ More detail lives in [docs/persistence.md](docs/persistence.md).
 
 | Example | Purpose | Run |
 | --- | --- | --- |
-| `basic` | Minimal flyover with one viewer and generated atlas materials | `cargo run -p saddle-world-voxel-world-example-basic` |
-| `block_editing` | Runtime block edits and remeshing near chunk boundaries | `cargo run -p saddle-world-voxel-world-example-block-editing` |
+| `basic` | Minimal flyover using the optional showcase preset from example support | `cargo run -p saddle-world-voxel-world-example-basic` |
+| `block_editing` | Manual block edits and remeshing near chunk boundaries | `cargo run -p saddle-world-voxel-world-example-block-editing` |
 | `multi_viewer` | Union streaming across two viewers with different priorities | `cargo run -p saddle-world-voxel-world-example-multi-viewer` |
-| `persistence` | Delta-region persistence and reload-friendly configuration | `cargo run -p saddle-world-voxel-world-example-persistence` |
+| `persistence` | Manual save-stamped edits with delta-region persistence | `cargo run -p saddle-world-voxel-world-example-persistence` |
 | `debug_gizmos` | Chunk bounds and viewer radii visualization | `cargo run -p saddle-world-voxel-world-example-debug-gizmos` |
-| `mini_minecraft` | Playable FPS voxel sandbox with block placement/breaking, trees, and HUD | `cargo run -p saddle-world-voxel-world-example-mini-minecraft` |
+| `mini_minecraft` | Playable FPS voxel sandbox layered on the optional showcase preset | `cargo run -p saddle-world-voxel-world-example-mini-minecraft` |
 
 The richer validation app lives in [`examples/lab`](examples/lab/README.md).
 
@@ -139,7 +140,7 @@ The richer validation app lives in [`examples/lab`](examples/lab/README.md).
 cargo run -p saddle-world-voxel-world-lab
 ```
 
-The lab adds a debug overlay, BRP wiring, `orbit_camera`-based navigation, viewer choreography, and focused E2E scenarios without expanding the runtime crate surface.
+The lab adds a debug overlay, BRP wiring, `orbit_camera`-based navigation, viewer choreography, and focused E2E scenarios without expanding the runtime crate surface. It intentionally opts into the example-support showcase preset so the core crate can stay generic.
 
 Lab controls:
 

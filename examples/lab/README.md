@@ -2,7 +2,7 @@
 
 Crate-local lab for the `saddle-world-voxel-world` shared crate. It provides:
 
-- a runnable voxel-world showcase app
+- a runnable voxel-world app that opts into the example-support showcase preset
 - `saddle-camera-orbit-camera`-driven manual navigation
 - BRP-friendly runtime inspection
 - focused E2E scenarios with screenshots and assertions

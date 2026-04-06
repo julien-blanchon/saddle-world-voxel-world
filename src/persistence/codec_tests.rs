@@ -18,10 +18,10 @@ fn random_like_chunk_rle_roundtrip() {
     let mut chunk = ChunkData::new_filled(dims, BlockId::AIR);
     for index in 0..(dims.x * dims.y * dims.z) {
         let local = chunk.local_from_index(index);
-        let block = if index % 3 == 0 {
-            BlockId::STONE
+        let block = if index.is_multiple_of(3) {
+            BlockId::SOLID
         } else {
-            BlockId::DIRT
+            BlockId::SOLID_ALT
         };
         chunk.set(local, block);
     }
@@ -38,7 +38,7 @@ fn corrupt_rle_input_is_rejected() {
 #[test]
 fn uniform_chunk_compresses_better_than_raw_payload() {
     let dims = UVec3::splat(16);
-    let chunk = ChunkData::new_filled(dims, BlockId::STONE);
+    let chunk = ChunkData::new_filled(dims, BlockId::SOLID);
     let encoded = encode_rle_blocks(&chunk);
     let raw_bytes = std::mem::size_of_val(chunk.blocks());
     assert!(encoded.len() < raw_bytes);

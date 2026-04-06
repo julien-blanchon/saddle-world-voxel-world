@@ -64,44 +64,6 @@ impl Default for LightingConfig {
 }
 
 #[derive(Clone, Copy, Debug, Default, Reflect, PartialEq, Eq)]
-pub enum GeneratorKind {
-    Flat,
-    #[default]
-    LayeredNoise,
-}
-
-#[derive(Clone, Debug, Reflect)]
-pub struct TerrainConfig {
-    pub generator: GeneratorKind,
-    pub base_height: i32,
-    pub height_amplitude: i32,
-    pub height_frequency: f32,
-    pub hill_octaves: u8,
-    pub cave_frequency: f32,
-    pub cave_threshold: f32,
-    pub water_level: i32,
-    pub foliage_chance: f32,
-    pub structure_version: u32,
-}
-
-impl Default for TerrainConfig {
-    fn default() -> Self {
-        Self {
-            generator: GeneratorKind::LayeredNoise,
-            base_height: 14,
-            height_amplitude: 18,
-            height_frequency: 0.012,
-            hill_octaves: 4,
-            cave_frequency: 0.06,
-            cave_threshold: 0.68,
-            water_level: 10,
-            foliage_chance: 0.08,
-            structure_version: 1,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, Reflect, PartialEq, Eq)]
 pub enum SaveMode {
     #[default]
     Disabled,
@@ -142,7 +104,6 @@ pub struct VoxelWorldConfig {
     pub seed: u64,
     pub generator_version: u32,
     pub save_policy: SavePolicy,
-    pub terrain: TerrainConfig,
     pub meshing: MeshingConfig,
     pub lighting: LightingConfig,
     pub atlas: AtlasConfig,
@@ -161,7 +122,6 @@ impl Default for VoxelWorldConfig {
             seed: 1,
             generator_version: 1,
             save_policy: SavePolicy::default(),
-            terrain: TerrainConfig::default(),
             meshing: MeshingConfig::default(),
             lighting: LightingConfig::default(),
             atlas: AtlasConfig::default(),

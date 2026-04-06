@@ -7,7 +7,10 @@ use saddle_world_voxel_world::{ChunkViewer, ChunkViewerSettings, VoxelWorldPlugi
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::srgb(0.58, 0.74, 0.90)))
+        .insert_resource(support::showcase_registry())
+        .insert_resource(support::showcase_generator())
         .insert_resource(support::default_config())
+        .insert_resource(support::VoxelExamplePane::default())
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Voxel World Multi Viewer".into(),
@@ -19,7 +22,10 @@ fn main() {
         .add_plugins(support::pane_plugins())
         .add_plugins(VoxelWorldPlugin::default())
         .register_pane::<support::VoxelExamplePane>()
-        .add_systems(Startup, (support::spawn_scene, spawn_secondary_viewer))
+        .add_systems(
+            Startup,
+            (support::spawn_scene, spawn_secondary_viewer, setup_overlay),
+        )
         .add_systems(
             Update,
             (
@@ -29,6 +35,14 @@ fn main() {
             ),
         )
         .run();
+}
+
+fn setup_overlay(mut commands: Commands) {
+    support::spawn_overlay(
+        &mut commands,
+        "Multi-Viewer Streaming",
+        "Primary viewer auto-orbits around the origin.\nA secondary viewer moves on a different path to demonstrate chunk-union residency.\nPane: change radii live and watch the streamed set expand or contract.",
+    );
 }
 
 fn spawn_secondary_viewer(mut commands: Commands) {

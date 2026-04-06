@@ -1,7 +1,9 @@
 mod generator;
-mod noise;
 
-pub use generator::{generate_chunk, sample_generated_block};
+pub use generator::{
+    FlatBlockSampler, VoxelBlockSampler, VoxelDecorationHook, VoxelWorldGenerator, generate_chunk,
+    sample_generated_block,
+};
 
 #[cfg(test)]
 #[path = "terrain_tests.rs"]

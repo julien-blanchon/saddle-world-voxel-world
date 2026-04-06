@@ -1,74 +1,112 @@
 use bevy::prelude::*;
 
 use super::*;
-use crate::config::VoxelWorldConfig;
+use crate::{BlockId, config::VoxelWorldConfig};
+
+#[derive(Clone)]
+struct CheckerSampler {
+    solid: BlockId,
+    alternate: BlockId,
+}
+
+impl VoxelBlockSampler for CheckerSampler {
+    fn sample_block(&self, world_pos: IVec3, _config: &VoxelWorldConfig) -> BlockId {
+        if world_pos.y > 0 {
+            BlockId::AIR
+        } else if (world_pos.x + world_pos.z).rem_euclid(2) == 0 {
+            self.solid
+        } else {
+            self.alternate
+        }
+    }
+}
+
+#[derive(Clone)]
+struct ColumnDecoration {
+    x: i32,
+    z: i32,
+    block: BlockId,
+}
+
+impl VoxelDecorationHook for ColumnDecoration {
+    fn decorate_block(
+        &self,
+        world_pos: IVec3,
+        sampled: BlockId,
+        _config: &VoxelWorldConfig,
+    ) -> Option<BlockId> {
+        (sampled == BlockId::AIR
+            && world_pos.x == self.x
+            && world_pos.z == self.z
+            && world_pos.y == 1)
+            .then_some(self.block)
+    }
+}
 
 #[test]
-fn generation_is_deterministic_for_same_seed() {
+fn generation_is_deterministic_for_same_sampler_chain() {
     let config = VoxelWorldConfig::default();
-    let a = generate_chunk(IVec3::new(2, 0, -3), &config);
-    let b = generate_chunk(IVec3::new(2, 0, -3), &config);
+    let generator = VoxelWorldGenerator::new(CheckerSampler {
+        solid: BlockId::SOLID,
+        alternate: BlockId::SOLID_ALT,
+    })
+    .with_decoration(ColumnDecoration {
+        x: 2,
+        z: -3,
+        block: BlockId::EMISSIVE,
+    });
+    let a = generate_chunk(IVec3::new(2, 0, -3), &config, &generator);
+    let b = generate_chunk(IVec3::new(2, 0, -3), &config, &generator);
     assert_eq!(a, b);
 }
 
 #[test]
-fn generation_changes_with_seed() {
-    let config_a = VoxelWorldConfig::default();
-    let config_b = VoxelWorldConfig {
-        seed: 999,
-        ..Default::default()
-    };
-    let a = generate_chunk(IVec3::new(0, 0, 0), &config_a);
-    let b = generate_chunk(IVec3::new(0, 0, 0), &config_b);
+fn swapping_sampler_changes_generated_chunk() {
+    let config = VoxelWorldConfig::default();
+    let flat = VoxelWorldGenerator::default();
+    let checker = VoxelWorldGenerator::new(CheckerSampler {
+        solid: BlockId::SOLID,
+        alternate: BlockId::SOLID_ALT,
+    });
+    let a = generate_chunk(IVec3::ZERO, &config, &flat);
+    let b = generate_chunk(IVec3::ZERO, &config, &checker);
     assert_ne!(a.blocks(), b.blocks());
 }
 
 #[test]
-fn sampled_height_stays_in_expected_band() {
+fn default_flat_sampler_produces_surface_fill_and_air_layers() {
     let config = VoxelWorldConfig::default();
-    let mut max_height = i32::MIN;
-    let mut min_height = i32::MAX;
-    for x in -32..=32 {
-        for z in -32..=32 {
-            let mut surface = -64;
-            for y in (-8)..48 {
-                let block = sample_generated_block(IVec3::new(x, y, z), &config);
-                if matches!(
-                    block,
-                    crate::BlockId::GRASS
-                        | crate::BlockId::DIRT
-                        | crate::BlockId::STONE
-                        | crate::BlockId::SAND
-                        | crate::BlockId::LAMP
-                ) {
-                    surface = y;
-                }
-            }
-            max_height = max_height.max(surface);
-            min_height = min_height.min(surface);
-        }
-    }
-    assert!(max_height <= 48);
-    assert!(min_height >= -64);
-    assert!(max_height > min_height);
+    let generator = VoxelWorldGenerator::default();
+
+    assert_eq!(
+        sample_generated_block(IVec3::new(0, -1, 0), &config, &generator),
+        BlockId::SOLID
+    );
+    assert_eq!(
+        sample_generated_block(IVec3::new(0, 0, 0), &config, &generator),
+        BlockId::SOLID_ALT
+    );
+    assert_eq!(
+        sample_generated_block(IVec3::new(0, 1, 0), &config, &generator),
+        BlockId::AIR
+    );
 }
 
 #[test]
-fn known_samples_stay_stable() {
+fn decoration_hooks_can_override_air_samples() {
     let config = VoxelWorldConfig::default();
-    let samples = [
-        (IVec3::new(0, 14, 0), crate::BlockId::AIR),
-        (IVec3::new(0, 8, 0), crate::BlockId::WATER),
-        (IVec3::new(8, 20, -8), crate::BlockId::STONE),
-        (IVec3::new(0, 4, 0), crate::BlockId::DIRT),
-        (IVec3::new(-8, 10, 4), crate::BlockId::STONE),
-    ];
+    let generator = VoxelWorldGenerator::default().with_decoration(ColumnDecoration {
+        x: 0,
+        z: 0,
+        block: BlockId::CROSS,
+    });
 
-    for (position, expected) in samples {
-        assert_eq!(
-            sample_generated_block(position, &config),
-            expected,
-            "{position:?}"
-        );
-    }
+    assert_eq!(
+        sample_generated_block(IVec3::new(0, 1, 0), &config, &generator),
+        BlockId::CROSS
+    );
+    assert_eq!(
+        sample_generated_block(IVec3::new(1, 1, 0), &config, &generator),
+        BlockId::AIR
+    );
 }

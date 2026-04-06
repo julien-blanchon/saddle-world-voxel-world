@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use saddle_world_voxel_world::{
-    BlockId, BlockRegistry, BlockSampler, ChunkData, VoxelWorldConfig,
-    benchmark_support::mesh_chunk_with_unknown_neighbors, decode_rle_blocks, encode_rle_blocks,
-    generate_chunk, raycast_blocks, sample_generated_block,
+    BlockId, BlockRegistry, BlockSampler, ChunkData, VoxelBlockSampler, VoxelDecorationHook,
+    VoxelWorldConfig, VoxelWorldGenerator, benchmark_support::mesh_chunk_with_unknown_neighbors,
+    decode_rle_blocks, encode_rle_blocks, generate_chunk, raycast_blocks, sample_generated_block,
 };
 
 fn criterion_config() -> Criterion {
@@ -14,12 +14,13 @@ fn criterion_config() -> Criterion {
 
 fn bench_meshing(c: &mut Criterion) {
     let config = VoxelWorldConfig::default();
+    let generator = bench_generator();
     let registry = BlockRegistry::default();
     let dims = config.chunk_dims;
-    let terrain_like = generate_chunk(IVec3::ZERO, &config);
+    let terrain_like = generate_chunk(IVec3::ZERO, &config, &generator);
     let cases = [
         ("empty", ChunkData::new_filled(dims, BlockId::AIR)),
-        ("full_solid", ChunkData::new_filled(dims, BlockId::STONE)),
+        ("full_solid", ChunkData::new_filled(dims, BlockId::SOLID)),
         ("checkerboard", checkerboard_chunk(dims)),
         ("terrain_like", terrain_like),
         ("edit_heavy", edit_heavy_chunk(dims)),
@@ -47,10 +48,12 @@ fn bench_meshing(c: &mut Criterion) {
 
 fn bench_compression(c: &mut Criterion) {
     let dims = UVec3::splat(16);
-    let terrain = generate_chunk(IVec3::new(1, 0, -1), &VoxelWorldConfig::default());
+    let config = VoxelWorldConfig::default();
+    let generator = bench_generator();
+    let terrain = generate_chunk(IVec3::new(1, 0, -1), &config, &generator);
     let cases = [
         ("empty", ChunkData::new_filled(dims, BlockId::AIR)),
-        ("uniform", ChunkData::new_filled(dims, BlockId::STONE)),
+        ("uniform", ChunkData::new_filled(dims, BlockId::SOLID)),
         ("terrain_like", terrain),
     ];
 
@@ -78,8 +81,8 @@ fn bench_raycast(c: &mut Criterion) {
     let registry = BlockRegistry::default();
     let sparse = Sampler {
         blocks: HashMap::from([
-            (IVec3::new(8, 8, 8), BlockId::STONE),
-            (IVec3::new(24, 8, 8), BlockId::STONE),
+            (IVec3::new(8, 8, 8), BlockId::SOLID),
+            (IVec3::new(24, 8, 8), BlockId::SOLID),
         ]),
     };
     let dense = Sampler {
@@ -114,11 +117,13 @@ fn bench_raycast(c: &mut Criterion) {
 
 fn bench_terrain_generation(c: &mut Criterion) {
     let config = VoxelWorldConfig::default();
+    let generator = bench_generator();
     c.bench_function("terrain_generation_chunk", |b| {
         b.iter(|| {
             black_box(generate_chunk(
                 black_box(IVec3::new(2, 0, -3)),
                 black_box(&config),
+                black_box(&generator),
             ))
         })
     });
@@ -126,7 +131,11 @@ fn bench_terrain_generation(c: &mut Criterion) {
         b.iter(|| {
             for x in -16..16 {
                 for z in -16..16 {
-                    black_box(sample_generated_block(IVec3::new(x, 12, z), &config));
+                    black_box(sample_generated_block(
+                        IVec3::new(x, 12, z),
+                        &config,
+                        &generator,
+                    ));
                 }
             }
         })
@@ -138,10 +147,10 @@ fn checkerboard_chunk(dims: UVec3) -> ChunkData {
     for z in 0..dims.z {
         for y in 0..dims.y {
             for x in 0..dims.x {
-                let block = if (x + y + z) % 2 == 0 {
-                    BlockId::STONE
+                let block = if (x + y + z).is_multiple_of(2) {
+                    BlockId::SOLID
                 } else {
-                    BlockId::DIRT
+                    BlockId::SOLID_ALT
                 };
                 chunk.set(UVec3::new(x, y, z), block);
             }
@@ -151,11 +160,11 @@ fn checkerboard_chunk(dims: UVec3) -> ChunkData {
 }
 
 fn edit_heavy_chunk(dims: UVec3) -> ChunkData {
-    let mut chunk = ChunkData::new_filled(dims, BlockId::STONE);
+    let mut chunk = ChunkData::new_filled(dims, BlockId::SOLID);
     for z in 1..(dims.z - 1) {
         for y in 1..(dims.y - 1) {
             for x in 1..(dims.x - 1) {
-                if (x + y + z) % 5 == 0 {
+                if (x + y + z).is_multiple_of(5) {
                     chunk.set(UVec3::new(x, y, z), BlockId::AIR);
                 }
             }
@@ -169,8 +178,8 @@ fn dense_raycast_map() -> HashMap<IVec3, BlockId> {
     for z in 0..16 {
         for y in 0..16 {
             for x in 0..16 {
-                if (x + y + z) % 3 != 0 {
-                    blocks.insert(IVec3::new(x, y, z), BlockId::STONE);
+                if !(x + y + z).is_multiple_of(3) {
+                    blocks.insert(IVec3::new(x, y, z), BlockId::SOLID);
                 }
             }
         }
@@ -186,6 +195,53 @@ impl BlockSampler for Sampler {
     fn sample_block(&self, world_pos: IVec3) -> Option<BlockId> {
         self.blocks.get(&world_pos).copied()
     }
+}
+
+#[derive(Clone)]
+struct BenchTerrainSampler;
+
+impl VoxelBlockSampler for BenchTerrainSampler {
+    fn sample_block(&self, world_pos: IVec3, _config: &VoxelWorldConfig) -> BlockId {
+        let surface = 6 + (world_pos.x * 31 + world_pos.z * 17).rem_euclid(9);
+        if world_pos.y > surface {
+            BlockId::AIR
+        } else if world_pos.y == surface {
+            BlockId::SOLID_ALT
+        } else if world_pos.y >= surface - 2 {
+            BlockId::SOLID
+        } else {
+            BlockId::SOLID_ACCENT
+        }
+    }
+}
+
+#[derive(Clone)]
+struct BenchDecoration;
+
+impl VoxelDecorationHook for BenchDecoration {
+    fn decorate_block(
+        &self,
+        world_pos: IVec3,
+        sampled: BlockId,
+        _config: &VoxelWorldConfig,
+    ) -> Option<BlockId> {
+        if sampled == BlockId::AIR
+            && world_pos.y == 8
+            && (world_pos.x + world_pos.z).is_multiple_of(11)
+        {
+            Some(BlockId::CROSS)
+        } else if sampled == BlockId::SOLID_ALT
+            && (world_pos.x * 13 + world_pos.z * 7).is_multiple_of(19)
+        {
+            Some(BlockId::EMISSIVE)
+        } else {
+            None
+        }
+    }
+}
+
+fn bench_generator() -> VoxelWorldGenerator {
+    VoxelWorldGenerator::new(BenchTerrainSampler).with_decoration(BenchDecoration)
 }
 
 criterion_group! {
