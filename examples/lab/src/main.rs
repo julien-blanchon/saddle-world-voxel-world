@@ -5,13 +5,13 @@ mod scenarios;
 
 use saddle_world_voxel_world_example_support as support;
 
+#[cfg(feature = "e2e")]
+use bevy::winit::WinitSettings;
 use bevy::{
     input::ButtonInput,
     prelude::*,
     remote::{RemotePlugin, http::RemoteHttpPlugin},
 };
-#[cfg(feature = "e2e")]
-use bevy::winit::WinitSettings;
 use saddle_camera_orbit_camera::{OrbitCamera, OrbitCameraInputTarget, OrbitCameraPlugin};
 use saddle_pane::prelude::*;
 use saddle_world_voxel_world::{
@@ -255,7 +255,10 @@ fn exit_finished_e2e(
     if !runner.finished || runner.handoff {
         return;
     }
-    if capture.as_ref().is_some_and(|capture| capture.pending_stitch) {
+    if capture
+        .as_ref()
+        .is_some_and(|capture| capture.pending_stitch)
+    {
         return;
     }
 

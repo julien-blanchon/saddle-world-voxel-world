@@ -26,10 +26,18 @@ Controls:
 
 ```bash
 cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_smoke_launch
-cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_terrain_generation
+cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_example_basic
+cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_example_debug_gizmos
+cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_example_block_editing
+cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_example_multi_viewer
+cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_example_persistence
 cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_streaming_motion
-cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_block_editing
-cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_multi_viewer
+```
+
+The interactive `mini_minecraft` example ships its own direct scenario:
+
+```bash
+cargo run -p saddle-world-voxel-world-example-mini-minecraft --features e2e -- mini_minecraft_interaction
 ```
 
 ## BRP

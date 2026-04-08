@@ -362,12 +362,7 @@ fn refresh_viewer_targets(
     for (transform, settings) in &viewers {
         let position = transform.translation().floor().as_ivec3();
         let viewer_chunk = world_to_chunk(position, config.chunk_dims);
-        let request_radius = settings
-            .map(|settings| settings.request_radius.max(config.request_radius))
-            .unwrap_or(config.request_radius);
-        let keep_radius = settings
-            .map(|settings| settings.keep_radius.max(config.keep_radius))
-            .unwrap_or(config.keep_radius);
+        let (request_radius, keep_radius) = resolved_viewer_radii(settings, &config);
         let priority = settings.map(|settings| settings.priority).unwrap_or(0);
 
         for z in -(keep_radius as i32)..=keep_radius as i32 {
@@ -599,18 +594,7 @@ fn poll_generation_jobs(
         let record = runtime.chunks.get_mut(&chunk).unwrap();
         record.generation_task = None;
         let mut data = result.data;
-        if let Ok(Some(edits)) = load_chunk_delta(
-            &config.save_policy,
-            chunk,
-            config.seed,
-            config.generator_version,
-        ) {
-            for edit in edits {
-                record.overrides.insert(edit.local_index, edit.block);
-                let local = data.local_from_index(edit.local_index);
-                data.set(local, edit.block);
-            }
-        }
+        load_saved_chunk_delta_into_data(&config, chunk, &mut data, &mut record.overrides);
         record.status.lifecycle = ChunkLifecycle::Generated;
         record.data = Some(data);
         stats.generated_chunks += 1;
@@ -643,6 +627,9 @@ fn process_voxel_commands(
             return;
         }
         if !runtime.chunks.contains_key(&chunk) {
+            let mut data = generate_chunk(chunk, config, &generator);
+            let mut overrides = std::collections::BTreeMap::new();
+            load_saved_chunk_delta_into_data(config, chunk, &mut data, &mut overrides);
             let entity = commands
                 .spawn((
                     Name::new(format!(
@@ -661,8 +648,8 @@ fn process_voxel_commands(
                 chunk,
                 ChunkRecord {
                     entity,
-                    data: Some(generate_chunk(chunk, config, &generator)),
-                    overrides: Default::default(),
+                    data: Some(data),
+                    overrides,
                     generation_task: None,
                     meshing_task: None,
                     pending_remesh: false,
@@ -843,6 +830,52 @@ fn build_padded_chunk(
     padded
 }
 
+fn load_saved_chunk_delta_into_data(
+    config: &VoxelWorldConfig,
+    chunk: IVec3,
+    data: &mut ChunkData,
+    overrides: &mut std::collections::BTreeMap<u32, BlockId>,
+) {
+    if let Ok(Some(edits)) = load_chunk_delta(
+        &config.save_policy,
+        chunk,
+        config.seed,
+        config.generator_version,
+    ) {
+        for edit in edits {
+            overrides.insert(edit.local_index, edit.block);
+            let local = data.local_from_index(edit.local_index);
+            data.set(local, edit.block);
+        }
+    }
+}
+
+fn resolved_viewer_radii(
+    settings: Option<&ChunkViewerSettings>,
+    config: &VoxelWorldConfig,
+) -> (u32, u32) {
+    let request_radius = settings
+        .map(|settings| {
+            if settings.request_radius == 0 {
+                config.request_radius
+            } else {
+                settings.request_radius
+            }
+        })
+        .unwrap_or(config.request_radius);
+    let keep_radius = settings
+        .map(|settings| {
+            if settings.keep_radius == 0 {
+                config.keep_radius
+            } else {
+                settings.keep_radius
+            }
+        })
+        .unwrap_or(config.keep_radius)
+        .max(request_radius);
+    (request_radius, keep_radius)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn poll_meshing_jobs(
     mut commands: Commands,
@@ -995,12 +1028,28 @@ fn generate_debug_atlas(config: &VoxelWorldConfig, registry: &BlockRegistry) -> 
 }
 
 fn debug_tile_color(tile: u16) -> [u8; 3] {
-    let hash = tile.wrapping_mul(1_103).wrapping_add(0x4d).rotate_left(3);
-    [
-        48 + (hash & 0x3f) as u8,
-        72 + ((hash >> 3) & 0x7f) as u8,
-        96 + ((hash >> 6) & 0x7f) as u8,
-    ]
+    match tile {
+        0 => [42, 48, 52],
+        1 => [96, 162, 84],
+        2 => [112, 108, 74],
+        3 => [138, 96, 62],
+        4 => [130, 136, 146],
+        5 => [212, 192, 126],
+        6 => [72, 126, 202],
+        7 => [94, 168, 96],
+        8 => [228, 186, 94],
+        9 => [132, 88, 52],
+        10 => [170, 134, 84],
+        11 => [88, 140, 74],
+        _ => {
+            let hash = tile.wrapping_mul(1_103).wrapping_add(0x4d).rotate_left(3);
+            [
+                48 + (hash & 0x3f) as u8,
+                72 + ((hash >> 3) & 0x7f) as u8,
+                96 + ((hash >> 6) & 0x7f) as u8,
+            ]
+        }
+    }
 }
 
 fn debug_tile_alpha(tile: u16, registry: &BlockRegistry) -> u8 {
@@ -1220,19 +1269,20 @@ fn update_debug_gizmos(
     config: Res<VoxelWorldConfig>,
     debug: Res<VoxelDebugConfig>,
     runtime: Res<RuntimeState>,
-    viewers: Query<&GlobalTransform, With<ChunkViewer>>,
+    viewers: Query<(&GlobalTransform, Option<&ChunkViewerSettings>), With<ChunkViewer>>,
     mut gizmos: Gizmos,
 ) {
     if debug.show_viewer_radii {
-        for transform in &viewers {
+        for (transform, settings) in &viewers {
+            let (request_radius, keep_radius) = resolved_viewer_radii(settings, &config);
             gizmos.sphere(
                 Isometry3d::from_translation(transform.translation()),
-                config.request_radius as f32 * config.chunk_dims.x as f32,
+                request_radius as f32 * config.chunk_dims.x as f32,
                 Color::srgba(0.29, 0.71, 0.96, 0.2),
             );
             gizmos.sphere(
                 Isometry3d::from_translation(transform.translation()),
-                config.keep_radius as f32 * config.chunk_dims.x as f32,
+                keep_radius as f32 * config.chunk_dims.x as f32,
                 Color::srgba(0.96, 0.73, 0.21, 0.2),
             );
         }

@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use saddle_pane::prelude::*;
+use saddle_procgen_noise::{Fbm, FractalConfig, NoiseSeed, NoiseSource, Perlin};
 use saddle_world_voxel_world::{
     BlockDefinition, BlockFaceAtlas, BlockId, BlockRegistry, ChunkViewer, ChunkViewerSettings,
     CollisionKind, MaterialClass, MeshKind, SaveMode, SavePolicy, VoxelBlockSampler,
@@ -297,24 +298,42 @@ pub fn spin_viewer(
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct ShowcaseTerrainSampler {
+    height_noise: Fbm<Perlin>,
+    cave_noise: Perlin,
     base_height: i32,
     height_amplitude: i32,
     height_frequency: f32,
-    hill_octaves: u8,
     cave_frequency: f32,
     cave_threshold: f32,
     water_level: i32,
 }
 
+impl std::fmt::Debug for ShowcaseTerrainSampler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ShowcaseTerrainSampler")
+            .field("base_height", &self.base_height)
+            .field("height_amplitude", &self.height_amplitude)
+            .field("water_level", &self.water_level)
+            .finish()
+    }
+}
+
 impl Default for ShowcaseTerrainSampler {
     fn default() -> Self {
         Self {
+            height_noise: Fbm::new(
+                Perlin::new(NoiseSeed(42)),
+                FractalConfig {
+                    octaves: 4,
+                    ..default()
+                },
+            ),
+            cave_noise: Perlin::new(NoiseSeed(0x0f0f)),
             base_height: 14,
             height_amplitude: 18,
             height_frequency: 0.012,
-            hill_octaves: 4,
             cave_frequency: 0.06,
             cave_threshold: 0.68,
             water_level: 10,
@@ -322,9 +341,19 @@ impl Default for ShowcaseTerrainSampler {
     }
 }
 
+impl ShowcaseTerrainSampler {
+    fn terrain_height_at(&self, x: i32, z: i32) -> f32 {
+        self.base_height as f32
+            + self
+                .height_noise
+                .sample(Vec2::new(x as f32, z as f32) * self.height_frequency)
+                * self.height_amplitude as f32
+    }
+}
+
 impl VoxelBlockSampler for ShowcaseTerrainSampler {
-    fn sample_block(&self, world_pos: IVec3, config: &VoxelWorldConfig) -> BlockId {
-        let height = terrain_height_at(self, config.seed, world_pos.x, world_pos.z);
+    fn sample_block(&self, world_pos: IVec3, _config: &VoxelWorldConfig) -> BlockId {
+        let height = self.terrain_height_at(world_pos.x, world_pos.z);
         let terrain_height = height.round() as i32;
 
         if world_pos.y > terrain_height {
@@ -335,8 +364,7 @@ impl VoxelBlockSampler for ShowcaseTerrainSampler {
             };
         }
 
-        let cave = value3(
-            config.seed ^ 0x0f0f_aaaa,
+        let cave = self.cave_noise.sample(
             Vec3::new(world_pos.x as f32, world_pos.y as f32, world_pos.z as f32)
                 * self.cave_frequency,
         );
@@ -358,14 +386,26 @@ impl VoxelBlockSampler for ShowcaseTerrainSampler {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct ShowcaseLampDecorator {
+    lamp_noise: Perlin,
     threshold: f32,
+}
+
+impl std::fmt::Debug for ShowcaseLampDecorator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ShowcaseLampDecorator")
+            .field("threshold", &self.threshold)
+            .finish()
+    }
 }
 
 impl Default for ShowcaseLampDecorator {
     fn default() -> Self {
-        Self { threshold: 0.92 }
+        Self {
+            lamp_noise: Perlin::new(NoiseSeed(0x44aa)),
+            threshold: 0.92,
+        }
     }
 }
 
@@ -374,29 +414,45 @@ impl VoxelDecorationHook for ShowcaseLampDecorator {
         &self,
         world_pos: IVec3,
         sampled: BlockId,
-        config: &VoxelWorldConfig,
+        _config: &VoxelWorldConfig,
     ) -> Option<BlockId> {
         if sampled != SHOWCASE_GRASS {
             return None;
         }
-        let lamp_noise = fbm2(
-            config.seed ^ 0x44aa_9911,
-            Vec2::new(world_pos.x as f32, world_pos.z as f32) * 0.07,
-            1,
-        );
-        (lamp_noise > self.threshold).then_some(SHOWCASE_LAMP)
+        let lamp_value = self
+            .lamp_noise
+            .sample(Vec2::new(world_pos.x as f32, world_pos.z as f32) * 0.07);
+        (lamp_value > self.threshold).then_some(SHOWCASE_LAMP)
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct ShowcaseFoliageDecorator {
+    terrain: ShowcaseTerrainSampler,
+    foliage_noise: Fbm<Perlin>,
     foliage_chance: f32,
     water_level: i32,
+}
+
+impl std::fmt::Debug for ShowcaseFoliageDecorator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ShowcaseFoliageDecorator")
+            .field("foliage_chance", &self.foliage_chance)
+            .finish()
+    }
 }
 
 impl Default for ShowcaseFoliageDecorator {
     fn default() -> Self {
         Self {
+            terrain: ShowcaseTerrainSampler::default(),
+            foliage_noise: Fbm::new(
+                Perlin::new(NoiseSeed(0x7171)),
+                FractalConfig {
+                    octaves: 2,
+                    ..default()
+                },
+            ),
             foliage_chance: 0.08,
             water_level: 10,
         }
@@ -408,35 +464,46 @@ impl VoxelDecorationHook for ShowcaseFoliageDecorator {
         &self,
         world_pos: IVec3,
         sampled: BlockId,
-        config: &VoxelWorldConfig,
+        _config: &VoxelWorldConfig,
     ) -> Option<BlockId> {
         if sampled != BlockId::AIR {
             return None;
         }
-        let terrain = ShowcaseTerrainSampler::default();
-        let terrain_height =
-            terrain_height_at(&terrain, config.seed, world_pos.x, world_pos.z).round() as i32;
+        let terrain_height = self
+            .terrain
+            .terrain_height_at(world_pos.x, world_pos.z)
+            .round() as i32;
         if world_pos.y != terrain_height + 1 || terrain_height <= self.water_level {
             return None;
         }
-        let tall_grass_noise = fbm2(
-            config.seed ^ 0x7171_1818,
-            Vec2::new(world_pos.x as f32, world_pos.z as f32) * 0.24,
-            2,
-        );
-        (tall_grass_noise > 1.0 - self.foliage_chance * 2.0).then_some(SHOWCASE_TALL_GRASS)
+        let tall_grass_value = self
+            .foliage_noise
+            .sample(Vec2::new(world_pos.x as f32, world_pos.z as f32) * 0.24);
+        (tall_grass_value > 1.0 - self.foliage_chance * 2.0).then_some(SHOWCASE_TALL_GRASS)
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct ShowcaseTreeDecorator {
+    terrain: ShowcaseTerrainSampler,
+    tree_seed: u64,
     foliage_chance: f32,
     water_level: i32,
+}
+
+impl std::fmt::Debug for ShowcaseTreeDecorator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ShowcaseTreeDecorator")
+            .field("foliage_chance", &self.foliage_chance)
+            .finish()
+    }
 }
 
 impl Default for ShowcaseTreeDecorator {
     fn default() -> Self {
         Self {
+            terrain: ShowcaseTerrainSampler::default(),
+            tree_seed: 0xdead_beef,
             foliage_chance: 0.08,
             water_level: 10,
         }
@@ -448,25 +515,23 @@ impl VoxelDecorationHook for ShowcaseTreeDecorator {
         &self,
         world_pos: IVec3,
         sampled: BlockId,
-        config: &VoxelWorldConfig,
+        _config: &VoxelWorldConfig,
     ) -> Option<BlockId> {
         if sampled != BlockId::AIR {
             return None;
         }
         let tree_chance = self.foliage_chance * 1.5;
-        let terrain = ShowcaseTerrainSampler::default();
 
         for dz in -3..=3 {
             for dx in -3..=3 {
                 let trunk_x = world_pos.x + dx;
                 let trunk_z = world_pos.z + dz;
-                let hash = tree_hash(config.seed, trunk_x, trunk_z);
+                let hash = tree_hash(self.tree_seed, trunk_x, trunk_z);
                 if hash > tree_chance {
                     continue;
                 }
 
-                let ground =
-                    terrain_height_at(&terrain, config.seed, trunk_x, trunk_z).round() as i32;
+                let ground = self.terrain.terrain_height_at(trunk_x, trunk_z).round() as i32;
                 if ground <= self.water_level + 1 {
                     continue;
                 }
@@ -504,105 +569,16 @@ impl VoxelDecorationHook for ShowcaseTreeDecorator {
     }
 }
 
-fn terrain_height_at(terrain: &ShowcaseTerrainSampler, seed: u64, x: i32, z: i32) -> f32 {
-    terrain.base_height as f32
-        + fbm2(
-            seed,
-            Vec2::new(x as f32, z as f32) * terrain.height_frequency,
-            terrain.hill_octaves,
-        ) * terrain.height_amplitude as f32
-}
-
-fn hash(mut x: u64) -> u64 {
-    x ^= x >> 30;
-    x = x.wrapping_mul(0xbf58_476d_1ce4_e5b9);
-    x ^= x >> 27;
-    x = x.wrapping_mul(0x94d0_49bb_1331_11eb);
-    x ^ (x >> 31)
-}
-
-fn hash3(seed: u64, x: i32, y: i32, z: i32) -> u64 {
-    hash(
-        seed ^ (x as u64).wrapping_mul(0x9e37_79b9)
-            ^ (y as u64).wrapping_mul(0x517c_c1b7)
-            ^ (z as u64).wrapping_mul(0x94d0_49bb),
-    )
-}
-
-fn unit_from_hash(value: u64) -> f32 {
-    ((value & 0xffff_ffff) as f32 / u32::MAX as f32) * 2.0 - 1.0
-}
-
-fn smoothstep(t: f32) -> f32 {
-    t * t * (3.0 - 2.0 * t)
-}
-
-fn lerp(a: f32, b: f32, t: f32) -> f32 {
-    a + (b - a) * t
-}
-
-fn value2(seed: u64, point: Vec2) -> f32 {
-    let cell = point.floor().as_ivec2();
-    let frac = point.fract();
-    let tx = smoothstep(frac.x);
-    let ty = smoothstep(frac.y);
-    let c00 = unit_from_hash(hash3(seed, cell.x, 0, cell.y));
-    let c10 = unit_from_hash(hash3(seed, cell.x + 1, 0, cell.y));
-    let c01 = unit_from_hash(hash3(seed, cell.x, 0, cell.y + 1));
-    let c11 = unit_from_hash(hash3(seed, cell.x + 1, 0, cell.y + 1));
-    lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty)
-}
-
-fn value3(seed: u64, point: Vec3) -> f32 {
-    let cell = point.floor().as_ivec3();
-    let frac = point.fract();
-    let tx = smoothstep(frac.x);
-    let ty = smoothstep(frac.y);
-    let tz = smoothstep(frac.z);
-
-    let sample = |dx: i32, dy: i32, dz: i32| -> f32 {
-        unit_from_hash(hash3(seed, cell.x + dx, cell.y + dy, cell.z + dz))
-    };
-
-    let c000 = sample(0, 0, 0);
-    let c100 = sample(1, 0, 0);
-    let c010 = sample(0, 1, 0);
-    let c110 = sample(1, 1, 0);
-    let c001 = sample(0, 0, 1);
-    let c101 = sample(1, 0, 1);
-    let c011 = sample(0, 1, 1);
-    let c111 = sample(1, 1, 1);
-
-    let a = lerp(lerp(c000, c100, tx), lerp(c010, c110, tx), ty);
-    let b = lerp(lerp(c001, c101, tx), lerp(c011, c111, tx), ty);
-    lerp(a, b, tz)
-}
-
-fn fbm2(seed: u64, point: Vec2, octaves: u8) -> f32 {
-    let mut sum = 0.0;
-    let mut amplitude = 1.0;
-    let mut frequency = 1.0;
-    let mut normalizer = 0.0;
-
-    for octave in 0..octaves {
-        sum += value2(seed.wrapping_add(octave as u64), point * frequency) * amplitude;
-        normalizer += amplitude;
-        amplitude *= 0.5;
-        frequency *= 2.0;
-    }
-
-    if normalizer == 0.0 {
-        0.0
-    } else {
-        sum / normalizer
-    }
-}
-
+/// Simple integer hash for deterministic tree placement probability.
+/// Kept as a direct hash (not coherent noise) so adjacent cells are uncorrelated.
 fn tree_hash(seed: u64, x: i32, z: i32) -> f32 {
-    let hash = hash(
-        seed.wrapping_add(0xdead_beef)
-            ^ (x as u64).wrapping_mul(0x9e37_79b9)
-            ^ (z as u64).wrapping_mul(0x94d0_49bb),
-    );
-    (hash & 0xffff_ffff) as f32 / u32::MAX as f32
+    let mut h = seed.wrapping_add(0xdead_beef)
+        ^ (x as u64).wrapping_mul(0x9e37_79b9)
+        ^ (z as u64).wrapping_mul(0x94d0_49bb);
+    h ^= h >> 30;
+    h = h.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    h ^= h >> 27;
+    h = h.wrapping_mul(0x94d0_49bb_1331_11eb);
+    h ^= h >> 31;
+    (h & 0xffff_ffff) as f32 / u32::MAX as f32
 }

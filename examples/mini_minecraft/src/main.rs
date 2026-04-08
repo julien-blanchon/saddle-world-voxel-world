@@ -15,10 +15,17 @@
 //! - **Escape** — Toggle mouse capture
 //! - **F3** — Toggle debug overlay
 
+#[cfg(feature = "e2e")]
+mod e2e;
+#[cfg(feature = "e2e")]
+mod scenarios;
+
+#[cfg(feature = "e2e")]
+use bevy::winit::WinitSettings;
 use bevy::{
     input::mouse::AccumulatedMouseMotion,
     prelude::*,
-    window::{CursorGrabMode, CursorOptions},
+    window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use saddle_pane::prelude::*;
 use saddle_world_voxel_world::{
@@ -27,9 +34,16 @@ use saddle_world_voxel_world::{
 };
 use saddle_world_voxel_world_example_support as support;
 
+pub(crate) const BLOCK_INTERACTION_RANGE: f32 = 8.0;
+const BLOCK_INTERACTION_SKIP_STEP: f32 = 0.2;
+const BLOCK_INTERACTION_MAX_SOLID_SKIP: f32 = 2.0;
+
 fn main() {
-    App::new()
-        .insert_resource(ClearColor(Color::srgb(0.53, 0.74, 0.93)))
+    let mut app = App::new();
+    app.insert_resource(ClearColor(Color::srgb(0.53, 0.74, 0.93)));
+    #[cfg(feature = "e2e")]
+    app.insert_resource(WinitSettings::continuous());
+    app.init_resource::<AccumulatedMouseMotion>()
         .insert_resource(support::showcase_registry())
         .insert_resource(support::showcase_generator())
         .insert_resource(VoxelWorldConfig {
@@ -57,8 +71,29 @@ fn main() {
         }))
         .add_plugins(support::pane_plugins())
         .register_pane::<support::VoxelExamplePane>()
-        .add_plugins(VoxelWorldPlugin::default())
-        .add_systems(Startup, setup_scene)
+        .add_plugins(VoxelWorldPlugin::default());
+    #[cfg(feature = "e2e")]
+    app.add_plugins(e2e::E2EPlugin);
+    app.configure_sets(
+        Update,
+        (
+            MiniMinecraftSystems::Controls,
+            MiniMinecraftSystems::Interaction,
+            MiniMinecraftSystems::Ui,
+        )
+            .chain(),
+    )
+    .configure_sets(
+        Update,
+        MiniMinecraftSystems::Interaction
+            .before(saddle_world_voxel_world::VoxelWorldSystems::Edits),
+    );
+    #[cfg(feature = "e2e")]
+    app.configure_sets(
+        Update,
+        MiniMinecraftSystems::Controls.after(saddle_bevy_e2e::E2ESet),
+    );
+    app.add_systems(Startup, setup_scene)
         .add_systems(
             Update,
             (
@@ -67,14 +102,21 @@ fn main() {
                 fps_camera_look,
                 fps_camera_move,
                 block_select,
-                block_interact,
-            ),
+            )
+                .in_set(MiniMinecraftSystems::Controls),
         )
         .add_systems(
             Update,
-            (update_crosshair, update_hud_text, toggle_debug_overlay),
+            block_interact.in_set(MiniMinecraftSystems::Interaction),
         )
-        .run();
+        .add_systems(
+            Update,
+            (update_crosshair, update_hud_text, toggle_debug_overlay)
+                .in_set(MiniMinecraftSystems::Ui),
+        );
+    #[cfg(feature = "e2e")]
+    app.add_systems(Update, exit_finished_e2e.after(saddle_bevy_e2e::E2ESet));
+    app.run();
 }
 
 #[derive(Component)]
@@ -88,6 +130,13 @@ struct HudText;
 
 #[derive(Component)]
 struct DebugOverlay;
+
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum MiniMinecraftSystems {
+    Controls,
+    Interaction,
+    Ui,
+}
 
 #[derive(Resource)]
 struct PlayerState {
@@ -112,7 +161,10 @@ impl Default for PlayerState {
     }
 }
 
-fn setup_scene(mut commands: Commands, mut cursor_opts: Query<&mut CursorOptions, With<Window>>) {
+fn setup_scene(
+    mut commands: Commands,
+    mut cursor_opts: Query<&mut CursorOptions, With<PrimaryWindow>>,
+) {
     // Grab cursor on startup
     if let Ok(mut opts) = cursor_opts.single_mut() {
         opts.grab_mode = CursorGrabMode::Locked;
@@ -235,7 +287,7 @@ fn setup_scene(mut commands: Commands, mut cursor_opts: Query<&mut CursorOptions
 
 fn toggle_cursor_grab(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut cursor_opts: Query<&mut CursorOptions, With<Window>>,
+    mut cursor_opts: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut state: ResMut<PlayerState>,
 ) {
     if keyboard.just_pressed(KeyCode::Escape) {
@@ -284,10 +336,10 @@ fn fps_camera_move(
     let mut direction = Vec3::ZERO;
 
     if keyboard.pressed(KeyCode::KeyW) {
-        direction += Vec3::NEG_Z;
+        direction += Vec3::Z;
     }
     if keyboard.pressed(KeyCode::KeyS) {
-        direction += Vec3::Z;
+        direction += Vec3::NEG_Z;
     }
     if keyboard.pressed(KeyCode::KeyA) {
         direction += Vec3::NEG_X;
@@ -348,6 +400,71 @@ impl saddle_world_voxel_world::BlockSampler for ViewSampler<'_> {
     }
 }
 
+pub(crate) fn sample_loaded_solid(
+    view: &saddle_world_voxel_world::VoxelWorldView,
+    registry: &BlockRegistry,
+    world_pos: IVec3,
+) -> bool {
+    view.sample_loaded_block(world_pos)
+        .is_some_and(|block| registry.get(block).solid)
+}
+
+fn first_open_interaction_origin(
+    view: &saddle_world_voxel_world::VoxelWorldView,
+    registry: &BlockRegistry,
+    origin: Vec3,
+    direction: Vec3,
+    max_skip: f32,
+) -> Option<(Vec3, f32)> {
+    if max_skip <= 0.0 {
+        return None;
+    }
+
+    let mut skipped = 0.0;
+    while skipped < max_skip {
+        skipped = (skipped + BLOCK_INTERACTION_SKIP_STEP).min(max_skip);
+        let sample_origin = origin + direction * skipped;
+        if !sample_loaded_solid(view, registry, sample_origin.floor().as_ivec3()) {
+            return Some((sample_origin, skipped));
+        }
+    }
+
+    None
+}
+
+pub(crate) fn raycast_interaction_blocks(
+    view: &saddle_world_voxel_world::VoxelWorldView,
+    registry: &BlockRegistry,
+    origin: Vec3,
+    direction: Vec3,
+    max_distance: f32,
+) -> Option<saddle_world_voxel_world::RaycastHit> {
+    let direction = direction.normalize_or_zero();
+    if direction == Vec3::ZERO || max_distance <= 0.0 {
+        return None;
+    }
+
+    let (start, skipped) = if sample_loaded_solid(view, registry, origin.floor().as_ivec3()) {
+        first_open_interaction_origin(
+            view,
+            registry,
+            origin,
+            direction,
+            max_distance.min(BLOCK_INTERACTION_MAX_SOLID_SKIP),
+        )?
+    } else {
+        (origin, 0.0)
+    };
+
+    raycast_blocks(
+        &ViewSampler { view },
+        registry,
+        start,
+        direction,
+        (max_distance - skipped).max(0.0),
+    )
+}
+
 fn block_interact(
     mouse: Res<ButtonInput<MouseButton>>,
     state: Res<PlayerState>,
@@ -371,8 +488,8 @@ fn block_interact(
 
     let origin = transform.translation;
     let direction = transform.forward().as_vec3();
-    let sampler = ViewSampler { view: &view };
-    let hit = raycast_blocks(&sampler, &registry, origin, direction, 8.0);
+    let hit =
+        raycast_interaction_blocks(&view, &registry, origin, direction, BLOCK_INTERACTION_RANGE);
 
     if let Some(hit) = hit {
         if left {
@@ -384,6 +501,9 @@ fn block_interact(
         } else if right {
             // Place block adjacent to hit face
             let place_pos = hit.world_pos + hit.normal;
+            if hit.normal == IVec3::ZERO {
+                return;
+            }
             writer.write(VoxelCommand::SetBlock(BlockEdit {
                 world_pos: place_pos,
                 block: state.selected_block,
@@ -465,4 +585,31 @@ fn toggle_debug_overlay(
             );
         }
     }
+}
+
+#[cfg(feature = "e2e")]
+fn exit_finished_e2e(
+    runner: Option<Res<saddle_bevy_e2e::runner::ScenarioRunner>>,
+    capture: Option<Res<saddle_bevy_e2e::capture::CaptureState>>,
+    mut sent: Local<bool>,
+) {
+    if *sent {
+        return;
+    }
+
+    let Some(runner) = runner else {
+        return;
+    };
+    if !runner.finished || runner.handoff {
+        return;
+    }
+    if capture
+        .as_ref()
+        .is_some_and(|capture| capture.pending_stitch)
+    {
+        return;
+    }
+
+    *sent = true;
+    std::process::exit(0);
 }

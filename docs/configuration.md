@@ -43,6 +43,7 @@ Default IDs:
 - `CUTOUT_SOLID`
 
 Real projects should usually insert a custom `BlockRegistry` before adding `VoxelWorldPlugin`.
+Sparse registries are supported: undefined IDs are treated as missing for validation and defensively resolve to `AIR` when read through `get()`.
 
 ### `VoxelWorldGenerator`
 

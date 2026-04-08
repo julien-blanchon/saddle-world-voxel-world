@@ -53,7 +53,7 @@ fn setup(mut commands: Commands) {
 
 For examples, crate-local labs, and always-on tools, `VoxelWorldPlugin::default()` is the always-on entrypoint. It activates on `PostStartup`, never deactivates, and updates in `Update`.
 
-Before adding the plugin, insert custom `BlockRegistry` and `VoxelWorldGenerator` resources when you want your own block palette or worldgen contract. If you do nothing, the crate falls back to a small generic debug registry plus a flat sampler.
+Before adding the plugin, insert custom `BlockRegistry` and `VoxelWorldGenerator` resources when you want your own block palette or worldgen contract. If you do nothing, the crate falls back to a small generic debug registry plus a flat sampler. Custom registries may use sparse `BlockId` values; undefined IDs are rejected by `contains()` and defensively resolve to `AIR` when sampled through `get()`.
 
 ## Public API
 
@@ -155,10 +155,13 @@ E2E verification commands:
 
 ```bash
 cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_smoke_launch
-cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_terrain_generation
+cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_example_basic
+cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_example_debug_gizmos
+cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_example_block_editing
+cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_example_multi_viewer
+cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_example_persistence
 cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_streaming_motion
-cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_block_editing
-cargo run -p saddle-world-voxel-world-lab --features e2e -- voxel_multi_viewer
+cargo run -p saddle-world-voxel-world-example-mini-minecraft --features e2e -- mini_minecraft_interaction
 ```
 
 ## BRP

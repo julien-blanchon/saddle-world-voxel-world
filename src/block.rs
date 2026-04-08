@@ -212,7 +212,9 @@ impl BlockRegistry {
 
     #[must_use]
     pub fn contains(&self, id: BlockId) -> bool {
-        self.blocks.get(id.0 as usize).is_some()
+        self.blocks
+            .get(id.0 as usize)
+            .is_some_and(|definition| definition.id == id)
     }
 
     #[must_use]

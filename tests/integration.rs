@@ -1,9 +1,10 @@
 use bevy::{asset::Assets, ecs::system::SystemState, prelude::*};
 use saddle_world_voxel_world::{
     BlockEdit, BlockId, BlockModified, ChunkLifecycle, ChunkPos, ChunkStatus, ChunkViewer,
-    VoxelBlockSampler, VoxelCommand, VoxelDebugConfig, VoxelDecorationHook, VoxelWorldConfig,
-    VoxelWorldGenerator, VoxelWorldPlugin, VoxelWorldRoot, VoxelWorldSystems, VoxelWorldView,
-    sample_generated_block, world_to_chunk,
+    ChunkViewerSettings, SaveMode, SavePolicy, VoxelBlockSampler, VoxelCommand, VoxelDebugConfig,
+    VoxelDecorationHook, VoxelWorldConfig, VoxelWorldGenerator, VoxelWorldPlugin, VoxelWorldRoot,
+    VoxelWorldSystems, VoxelWorldView, sample_generated_block, save_chunk_delta, world_to_chunk,
+    world_to_chunk_local,
 };
 
 #[derive(Resource, Default)]
@@ -351,4 +352,117 @@ fn read_only_view_exposes_loaded_blocks() {
     let view = system_state.get(app.world_mut());
     let loaded = view.sample_loaded_block(IVec3::new(0, 8, 0));
     assert!(loaded.is_some());
+}
+
+#[test]
+fn viewer_settings_can_shrink_global_radii() {
+    let config = VoxelWorldConfig {
+        request_radius: 4,
+        keep_radius: 4,
+        max_chunk_requests_per_frame: 128,
+        ..Default::default()
+    };
+    let mut app = make_app_with_config(config.clone());
+
+    app.world_mut().spawn((
+        Name::new("Compact Viewer"),
+        ChunkViewer,
+        ChunkViewerSettings {
+            request_radius: 1,
+            keep_radius: 1,
+            priority: 0,
+        },
+        PrimaryViewer,
+        Transform::from_xyz(8.0, 8.0, 8.0),
+        GlobalTransform::from_translation(Vec3::new(8.0, 8.0, 8.0)),
+    ));
+
+    run_until(&mut app, 120, |app| {
+        app.world()
+            .resource::<saddle_world_voxel_world::VoxelWorldStats>()
+            .loaded_chunks
+            > 0
+    });
+
+    let viewer_chunk = world_to_chunk(IVec3::new(8, 8, 8), config.chunk_dims);
+    let chunks = app
+        .world_mut()
+        .query::<&ChunkPos>()
+        .iter(app.world())
+        .map(|chunk| chunk.0)
+        .collect::<Vec<_>>();
+    assert!(!chunks.is_empty());
+    assert!(
+        chunks
+            .iter()
+            .all(|chunk| (*chunk - viewer_chunk).length_squared() <= 1)
+    );
+}
+
+#[test]
+fn editing_unloaded_chunk_preserves_persisted_overrides() {
+    let root = tempfile_dir("voxel_world_on_demand_edit_preserves_delta");
+    let config = VoxelWorldConfig {
+        save_policy: SavePolicy {
+            mode: SaveMode::DeltaRegions,
+            root: root.clone(),
+            autosave_interval_seconds: 0.0,
+            max_chunks_per_frame: 8,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let persisted_world_pos = IVec3::new(1, 9, 1);
+    let (chunk, local) = world_to_chunk_local(persisted_world_pos, config.chunk_dims);
+    let local_index =
+        (local.x + config.chunk_dims.x * (local.y + config.chunk_dims.y * local.z)) as u32;
+    let mut overrides = std::collections::BTreeMap::new();
+    overrides.insert(local_index, BlockId::EMISSIVE);
+    save_chunk_delta(
+        &config.save_policy,
+        chunk,
+        config.seed,
+        config.generator_version,
+        1,
+        &overrides,
+    )
+    .expect("seeded persistence delta should save");
+
+    let mut app = make_app_with_config(config);
+    app.update();
+
+    let fresh_edit_pos = IVec3::new(2, 9, 1);
+    app.world_mut()
+        .resource_mut::<Messages<VoxelCommand>>()
+        .write(VoxelCommand::SetBlock(BlockEdit {
+            world_pos: fresh_edit_pos,
+            block: BlockId::SOLID_ALT,
+        }));
+
+    run_until(&mut app, 60, |app| {
+        app.world()
+            .resource::<saddle_world_voxel_world::VoxelWorldStats>()
+            .block_modifications
+            >= 1
+    });
+
+    let mut system_state = SystemState::<VoxelWorldView>::new(app.world_mut());
+    let view = system_state.get(app.world_mut());
+    assert_eq!(
+        view.sample_loaded_block(persisted_world_pos),
+        Some(BlockId::EMISSIVE)
+    );
+    assert_eq!(
+        view.sample_loaded_block(fresh_edit_pos),
+        Some(BlockId::SOLID_ALT)
+    );
+}
+
+fn tempfile_dir(name: &str) -> String {
+    let mut path = std::env::temp_dir();
+    path.push(name);
+    let _ = std::fs::remove_dir_all(&path);
+    std::fs::create_dir_all(&path).expect("temp test directory should be creatable");
+    path.to_string_lossy().to_string()
 }

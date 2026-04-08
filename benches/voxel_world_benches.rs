@@ -164,7 +164,7 @@ fn edit_heavy_chunk(dims: UVec3) -> ChunkData {
     for z in 1..(dims.z - 1) {
         for y in 1..(dims.y - 1) {
             for x in 1..(dims.x - 1) {
-                if (x + y + z).is_multiple_of(5) {
+                if (x + y + z) % 5 == 0 {
                     chunk.set(UVec3::new(x, y, z), BlockId::AIR);
                 }
             }
@@ -178,7 +178,7 @@ fn dense_raycast_map() -> HashMap<IVec3, BlockId> {
     for z in 0..16 {
         for y in 0..16 {
             for x in 0..16 {
-                if !(x + y + z).is_multiple_of(3) {
+                if (x + y + z) % 3 != 0 {
                     blocks.insert(IVec3::new(x, y, z), BlockId::SOLID);
                 }
             }
@@ -227,11 +227,11 @@ impl VoxelDecorationHook for BenchDecoration {
     ) -> Option<BlockId> {
         if sampled == BlockId::AIR
             && world_pos.y == 8
-            && (world_pos.x + world_pos.z).is_multiple_of(11)
+            && (world_pos.x + world_pos.z).rem_euclid(11) == 0
         {
             Some(BlockId::CROSS)
         } else if sampled == BlockId::SOLID_ALT
-            && (world_pos.x * 13 + world_pos.z * 7).is_multiple_of(19)
+            && (world_pos.x * 13 + world_pos.z * 7).rem_euclid(19) == 0
         {
             Some(BlockId::EMISSIVE)
         } else {

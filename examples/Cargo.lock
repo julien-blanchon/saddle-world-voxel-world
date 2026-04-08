@@ -407,7 +407,7 @@ dependencies = [
  "downcast-rs 2.0.2",
  "either",
  "petgraph",
- "ron",
+ "ron 0.12.1",
  "serde",
  "smallvec",
  "thiserror 2.0.18",
@@ -504,7 +504,7 @@ dependencies = [
  "futures-lite",
  "futures-util",
  "js-sys",
- "ron",
+ "ron 0.12.1",
  "serde",
  "stackfuture",
  "thiserror 2.0.18",
@@ -1492,7 +1492,7 @@ dependencies = [
  "bevy_transform",
  "bevy_utils",
  "derive_more",
- "ron",
+ "ron 0.12.1",
  "serde",
  "thiserror 2.0.18",
  "uuid",
@@ -4789,6 +4789,19 @@ dependencies = [
 
 [[package]]
 name = "ron"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63f3aa105dea217ef30d89581b65a4d527a19afc95ef5750be3890e8d3c5b837"
+dependencies = [
+ "base64",
+ "bitflags 2.11.0",
+ "serde",
+ "serde_derive",
+ "unicode-ident",
+]
+
+[[package]]
+name = "ron"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4147b952f3f819eca0e99527022f7d6a8d05f111aeb0a62960c74eb283bec8fc"
@@ -4974,6 +4987,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "saddle-procgen-noise"
+version = "0.1.0"
+source = "git+https://github.com/julien-blanchon/saddle-procgen-noise#aba4a8c60edbea038ebedd9661e4a53ed2930847"
+dependencies = [
+ "bevy",
+ "ron 0.9.0",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "saddle-world-voxel-world"
 version = "0.1.0"
 dependencies = [
@@ -5015,6 +5039,7 @@ name = "saddle-world-voxel-world-example-mini-minecraft"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "saddle-bevy-e2e",
  "saddle-pane",
  "saddle-world-voxel-world",
  "saddle-world-voxel-world-example-support",
@@ -5049,6 +5074,7 @@ dependencies = [
  "bevy_input_focus",
  "bevy_ui_widgets",
  "saddle-pane",
+ "saddle-procgen-noise",
  "saddle-world-voxel-world",
 ]
 

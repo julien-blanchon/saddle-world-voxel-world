@@ -15,6 +15,7 @@ resolver = "3"
 bevy = { version = "0.18", features = ["bevy_asset", "bevy_render", "bevy_pbr", "serialize"] }
 saddle-world-voxel-world = { path = ".." }
 saddle-camera-orbit-camera = { git = "https://github.com/julien-blanchon/saddle-camera-orbit-camera" }
+saddle-procgen-noise = { git = "https://github.com/julien-blanchon/saddle-procgen-noise" }
 saddle-pane = { git = "https://github.com/julien-blanchon/saddle-pane" }
 bevy_flair = "0.7"
 bevy_input_focus = "0.18"
